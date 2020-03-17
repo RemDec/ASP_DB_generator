@@ -102,7 +102,7 @@ class Relation:
             else:
                 err = f"Queried attribute {attr_name} wasn't generated in the tuple for relation {self.name}"
                 raise KeyMaterialError(err, self)
-        return tup
+        return tuple(tup)
 
     def generate_tuple(self, given_attr_values, attr_sequence_order=None, keep_attr_name=True):
         attr_pk_not_valued, attr_not_valued = [], []
@@ -116,6 +116,7 @@ class Relation:
         self.generate_tuple_missing_val(self.get_attr_infos(attr_pk_not_valued), given_attr_values)
         # generate second others attr, considering generated value for PK (side-effect on given_attr_values)
         self.generate_tuple_missing_val(self.get_attr_infos(attr_not_valued), given_attr_values)
+        # fix values of generated tuple in sequence order given, return it as a tuple ((attr1, val1), (attr2, val2),...)
         return self.fix_tuple_values(given_attr_values, attr_sequence_order, keep_attr_name)
 
     def __str__(self):
