@@ -1,4 +1,6 @@
 from operator import itemgetter
+from src.instantiation.relinstance import RelationInstance
+from src.utils.utilfunctions import single_to_tuple, get_indexes
 
 
 class KeyMaterialError(ValueError):
@@ -25,11 +27,12 @@ class Relation:
                 self.pk.append(name_in_rel)
 
     def add_fk_constraint(self, map_to_others_rel):
-        for attr_name, foreign_rel in map_to_others_rel.items():
-            if not foreign_rel.pk_contains(attr_name):
+        for attr_names, foreign_rel in map_to_others_rel.items():
+            attr_names = single_to_tuple(attr_names)
+            if not foreign_rel.pk_contains(attr_names):
                 err = f"Given FK for {self.name} wrongly references PK in relation {foreign_rel.name}"
                 raise KeyMaterialError(err, foreign_rel)
-            self.fks[attr_name] = foreign_rel
+            self.fks[attr_names] = foreign_rel
 
     def define_pk(self, pk):
         if isinstance(pk, str):
@@ -48,8 +51,29 @@ class Relation:
                 raise KeyMaterialError(f"Inconsistent PK : attribute {attr} not in relation {self.name}", self)
         return True
 
-    def pk_contains(self, attr):
-        return attr in self.pk
+    def pk_contains(self, attrs):
+        attrs = single_to_tuple(attrs)
+        for attr in attrs:
+            if not(attr in self.pk):
+                return False
+        return True
+
+    def constitute_fk(self, attrs):
+        attrs = single_to_tuple(attrs)
+        return self.fks.get(attrs)
+
+    def get_belongs_fk(self, attrs):
+        attrs = single_to_tuple(attrs)
+        found_fk = []
+        for fk in self.fks:
+            ok = True
+            for attr in attrs:
+                if not(attr in fk):
+                    ok = False
+                    break
+            if ok:
+                found_fk.append(fk)
+        return found_fk
 
     def get_pk_attr(self):
         return self.pk.copy()
@@ -74,16 +98,21 @@ class Relation:
             others = map(itemgetter(1), self.get_attr_infos(non_pk_attr))
         return list(in_pk), list(others)
 
+    def get_dflt_attr_sequence(self):
+        pk_attr, others_attr = self.get_all_attr()
+        return pk_attr + others_attr
+
     def get_attr_infos(self, attributes, sort_them=True):
         # retrieve attributes info objects and may sort these using order value to follow for tuple generation
+        attributes = single_to_tuple(attributes)
         info = []
         for attr in attributes:
             if attr in self.attributes:
-                info.append((self.attributes[attr], attr))
+                info.append((self.attributes[attr], attr))  # formatted as (AttributeInfo, attr_name_in_rel)
         return sorted(info) if sort_them else info
 
     def generate_tuple_missing_val(self, attr_info_missing, already_known_val):
-        for attr_info, attr_name in attr_info_missing:  # supposing it's ordered following generation order
+        for attr_info, attr_name in attr_info_missing:  # assuming it's ordered following generation order
             # generate value for attr considering all previous value already generated for others (with <= order)
             already_known_val[attr_name] = attr_info.get_generated_value(already_known_val)  # side-effect on dict
 
@@ -91,8 +120,7 @@ class Relation:
         # from generated tuple values, fix them following a given sequence of attributes name, return corresp. values
         tup = []
         if attr_sequence_order is None:
-            pk_attr, others_attr = self.get_all_attr()
-            attr_sequence_order = pk_attr + others_attr
+            attr_sequence_order = self.get_dflt_attr_sequence()
         for attr_name in attr_sequence_order:
             if valued_attributes.get(attr_name, False):
                 if keep_attr_name:
@@ -112,12 +140,45 @@ class Relation:
                     attr_pk_not_valued.append(attr)
                 else:
                     attr_not_valued.append(attr)
+        given_attr_values = given_attr_values.copy()
         # generate first missing values for attr in PK, ordering generation with order value defined in each attr_info
         self.generate_tuple_missing_val(self.get_attr_infos(attr_pk_not_valued), given_attr_values)
         # generate second others attr, considering generated value for PK (side-effect on given_attr_values)
         self.generate_tuple_missing_val(self.get_attr_infos(attr_not_valued), given_attr_values)
         # fix values of generated tuple in sequence order given, return it as a tuple ((attr1, val1), (attr2, val2),...)
         return self.fix_tuple_values(given_attr_values, attr_sequence_order, keep_attr_name)
+
+    def generate_instance(self, param_generation, attr_sequence_order=None, respect_fk_constraint=True):
+        # if param_generation is integer, generate as much tuples from empty predetermined given value for some attr
+        # if param_generation list of tuples (n1, {attr:val}), (n2, {attr2:val2}), ... generate n1 tuples considering
+        # predetermined value val for attribute attr, n2 tuples with value val2 for attr2, etc.
+        if isinstance(param_generation, int):
+            param_generation = [(param_generation, {})]
+        elif isinstance(param_generation, tuple):
+            param_generation = [param_generation]
+        if attr_sequence_order is None:
+            attr_sequence_order = self.get_dflt_attr_sequence()
+        got_tuples = []
+        indexes_attr_to_keep = {}
+        o_rel_tuples_fk = {}
+        if respect_fk_constraint:  # for each fk, have to extract tuple values that should appear on referenced relation
+            for fk_attr, other_rel in self.fks.items():
+                indexes = get_indexes(fk_attr, attr_sequence_order)  # indexes of FK attr in the sequence
+                if indexes:
+                    indexes_attr_to_keep[other_rel] = indexes
+                    o_rel_tuples_fk[other_rel] = []
+        # generate tuples value order considering sequence and may extract values for referenced other rel to respect fk
+        for n, given_attr_values in param_generation:
+            for _ in range(n):
+                new_tuple = self.generate_tuple(given_attr_values, attr_sequence_order, keep_attr_name=False)
+                got_tuples.append(new_tuple)
+                for o_rel, inds in indexes_attr_to_keep.items():
+                    fk_attr_with_val = {}  # to feed like {attr1: val1, attr2: val2, ...} where attr in fk ref. o_rel
+                    for ind in inds:
+                        fk_attr_with_val[attr_sequence_order[ind]] = new_tuple[ind]
+                    o_rel_tuples_fk[o_rel].append(fk_attr_with_val)
+        rel_inst = RelationInstance(self, attr_sequence_order, init_tuples=got_tuples)
+        return rel_inst, o_rel_tuples_fk
 
     def __str__(self):
         pk_attr, o_attr = self.get_all_attr()
@@ -130,9 +191,10 @@ class Relation:
             for attr in attributes:
                 attr_info = self.attributes[attr]
                 s += f"{' '*shifting}| {attr} : {attr_info}\n"
-                if attr in self.fks:
+                in_fk = self.get_belongs_fk(attr)
+                if in_fk:
                     s = s[:-1]
-                    s += f" - FK for {self.fks[attr].name}\n"
+                    s += f" - FK for {','.join([self.fks[fk].name for fk in in_fk])}\n"
             return s
         s += disp_attributes_info(pk_attr)
         s += ' '*shifting + "| vvv OTHERS vvv\n"
@@ -146,22 +208,34 @@ if __name__ == "__main__":
     def compose_attr3(other_attr_value):
         return other_attr_value.get("attr1", "UNK") + '-' + other_attr_value.get("attr2", "UNK")
 
+    pk_int = AttributeInfo("impk", attr_type=AttributeTypes.incr_int)
+    attr1 = AttributeInfo("attr1", desc="random integer")
+    attr2 = AttributeInfo("attr2", attr_type=AttributeTypes.str)
+    fk_str = AttributeInfo("imfk", attr_type=AttributeTypes.str, gen_order=2, value_generator=compose_attr3,
+                           desc="composed from attr1 attr2")
+
     SRel = Relation("SRel", pk="pkattr",
-                    attributes={"pkattr": AttributeInfo("impk", attr_type=AttributeTypes.incr_int),
-                                "attr1": AttributeInfo("attr1", desc="random integer"),
-                                "attr2": AttributeInfo("attr2", attr_type=AttributeTypes.str),
-                                "attr3": AttributeInfo("imfk", attr_type=AttributeTypes.str,
-                                                       gen_order=2, value_generator=compose_attr3,
-                                                       desc="composed from attr1 attr2")},
-                    )
+                    attributes={"pkattr": pk_int,
+                                "attr1": attr1,
+                                "attr2": attr2,
+                                "attr3": fk_str})
 
     RRel = Relation("RRel", pk="attr3", attributes={"attr3": AttributeInfo("attr3", attr_type=AttributeTypes.str)})
     SRel.add_fk_constraint({"attr3": RRel})
 
     print(SRel, RRel, sep='\n')
-
+    print("generating tuples from SRel ...")
     for i in range(5):
         print(SRel.generate_tuple({}))
-
+    print("generate and project tuple to a shortened attributes sequence")
     print(SRel.generate_tuple(given_attr_values={"attr1": "first", "attr2": "second"},
                               attr_sequence_order=["pkattr", "attr3"]))
+
+    print("generate an instance from SRel ...")
+    inst1, fk_gen = SRel.generate_instance(10)
+    print(inst1)
+    print(fk_gen)
+
+    inst2, fk_gen2 = SRel.generate_instance([(5, {}), (5, {"attr2": "fixed"})], attr_sequence_order=["attr3", "pkattr"])
+    print(inst2)
+    print(fk_gen2)

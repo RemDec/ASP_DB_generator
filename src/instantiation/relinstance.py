@@ -71,7 +71,8 @@ class RelationInstance:
     def repr_n_tuples(self, tuples, n=10):
         max_lens = []
         sel_tuples = tuples[:n]
-        for col, attr_name in enumerate(self.attribute_fix):
+        attributes = [f"[{attr}]" if self.rel_model.pk_contains(attr) else attr for attr in self.attribute_fix]
+        for col, attr_name in enumerate(attributes):
             col_attr = [tup[0][col] for tup in sel_tuples]
             max_width_tup_val = reduce(lambda c, s: max(c, len(s)), col_attr, -1)
             width = max(len(attr_name), max_width_tup_val)
@@ -80,7 +81,7 @@ class RelationInstance:
         shifting = len(s)
         s += '|'
         info_header = " C D "
-        for i, attr_name in enumerate(self.attribute_fix):
+        for i, attr_name in enumerate(attributes):
             spaces = ' '*(max_lens[i]-len(attr_name))
             info_header += f" {attr_name}{spaces}"
         s += f"{info_header}\n"
@@ -96,7 +97,9 @@ class RelationInstance:
         return s
 
     def __str__(self):
-        return self.repr_n_tuples(self.tuples, self.get_size())
+        s = f"Instance of {self.rel_model.name}, {self.get_size()} tuples : {self.nbr_generated} (regular)" \
+            f" {self.nbr_constrained} (from constraints) {self.nbr_degenerated} (degenerated)\n"
+        return s + self.repr_n_tuples(self.tuples, self.get_size())
 
 
 if __name__ == "__main__":
