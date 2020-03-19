@@ -1,4 +1,5 @@
 from operator import itemgetter
+from src.model.attribute import AttributeInfo
 from src.instantiation.relinstance import RelationInstance
 from src.utils.utilfunctions import single_to_tuple, get_indexes
 
@@ -14,7 +15,8 @@ class Relation:
 
     def __init__(self, name, attributes=None, pk=None):
         self.name = name
-        self.attributes = {} if attributes is None else attributes
+        self.attributes = {}
+        self.treat_attributes(attributes)
         self.pk = []
         self.define_pk(pk)
         self.fks = {}
@@ -25,6 +27,16 @@ class Relation:
         if pk:
             if not(name_in_rel in self.pk):
                 self.pk.append(name_in_rel)
+
+    def treat_attributes(self, attributes):
+        if isinstance(attributes, list):
+            for attr in attributes:
+                self.add_attribute(attr)
+        elif isinstance(attributes, dict):
+            for attr_name, attr_info in attributes.items():
+                self.add_attribute(attr_info, name=attr_name)
+        elif isinstance(attributes, AttributeInfo):
+            self.add_attribute(attributes)
 
     def add_fk_constraint(self, map_to_others_rel):
         for attr_names, foreign_rel in map_to_others_rel.items():
@@ -111,6 +123,10 @@ class Relation:
                 info.append((self.attributes[attr], attr))  # formatted as (AttributeInfo, attr_name_in_rel)
         return sorted(info) if sort_them else info
 
+    def reset_attr_generators(self):
+        for attr_infos in self.attributes.values():
+            attr_infos.reset_generator()
+
     def generate_tuple_missing_val(self, attr_info_missing, already_known_val):
         for attr_info, attr_name in attr_info_missing:  # assuming it's ordered following generation order
             # generate value for attr considering all previous value already generated for others (with <= order)
@@ -160,7 +176,7 @@ class Relation:
             attr_sequence_order = self.get_dflt_attr_sequence()
         got_tuples = []
         indexes_attr_to_keep = {}
-        o_rel_tuples_fk = {}
+        o_rel_tuples_fk = {}  # of the form {Relation: [{attr1: val1, attr2: val2}, {attr1: val1, attr2: val2}, ...],..}
         if respect_fk_constraint:  # for each fk, have to extract tuple values that should appear on referenced relation
             for fk_attr, other_rel in self.fks.items():
                 indexes = get_indexes(fk_attr, attr_sequence_order)  # indexes of FK attr in the sequence
@@ -177,8 +193,14 @@ class Relation:
                     for ind in inds:
                         fk_attr_with_val[attr_sequence_order[ind]] = new_tuple[ind]
                     o_rel_tuples_fk[o_rel].append(fk_attr_with_val)
-        rel_inst = RelationInstance(self, attr_sequence_order, init_tuples=got_tuples)
+        rel_inst = RelationInstance(self.__copy__(), attr_sequence_order, init_tuples=got_tuples)
+        self.reset_attr_generators()  # any new instance generated from this relation shouldn't depend previous one
         return rel_inst, o_rel_tuples_fk
+
+    def __copy__(self):
+        copy_rel = Relation(self.name, attributes=self.attributes.copy(), pk=self.pk.copy())
+        copy_rel.add_fk_constraint(self.fks.copy())  # CARE NO DEEP COPY OF RELATIONS REFERENCED BY FKs !!!
+        return copy_rel
 
     def __str__(self):
         pk_attr, o_attr = self.get_all_attr()
@@ -211,7 +233,8 @@ if __name__ == "__main__":
     pk_int = AttributeInfo("impk", attr_type=AttributeTypes.incr_int)
     attr1 = AttributeInfo("attr1", desc="random integer")
     attr2 = AttributeInfo("attr2", attr_type=AttributeTypes.str)
-    fk_str = AttributeInfo("imfk", attr_type=AttributeTypes.str, gen_order=2, value_generator=compose_attr3,
+    fk_str = AttributeInfo("imfk", attr_type=AttributeTypes.str, gen_order=2,
+                           get_generator_fun=lambda _: compose_attr3,
                            desc="composed from attr1 attr2")
 
     SRel = Relation("SRel", pk="pkattr",
@@ -234,8 +257,8 @@ if __name__ == "__main__":
     print("generate an instance from SRel ...")
     inst1, fk_gen = SRel.generate_instance(10)
     print(inst1)
-    print(fk_gen)
+    print("FK constraints returned tuple to add to respect properties", fk_gen, "\n\n")
 
     inst2, fk_gen2 = SRel.generate_instance([(5, {}), (5, {"attr2": "fixed"})], attr_sequence_order=["attr3", "pkattr"])
-    print(inst2)
-    print(fk_gen2)
+    print("SECOND generated instance from SREL should restart PK increment (new generators)\n", inst2)
+    print("FK constraints returned tuple to add to respect properties", fk_gen2)

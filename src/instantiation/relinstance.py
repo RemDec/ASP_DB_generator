@@ -14,6 +14,7 @@ class RelationInstance:
 
     def __init__(self, rel_model, attribute_fix, init_tuples=None):
         self.rel_model = rel_model
+        self.name = rel_model.name
         self.attribute_fix = attribute_fix
         self.tuples = []
         self.nbr_generated = 0
@@ -39,6 +40,16 @@ class RelationInstance:
             formated_tuples.append((tuple(only_values), from_constraint, degenerated))
         self.tuples.extend(formated_tuples)
         self.adjust_tuple_nbrs(len(formated_tuples), from_constraint, degenerated)
+
+    def generate_new_tuple(self, given_attr_values, keep_attr_name=False):
+        return self.rel_model.generate_tuple(given_attr_values, self.attribute_fix, keep_attr_name)
+
+    def generate_new_tuples(self, given_attr_values_list, keep_attr_name=False):
+        return [self.generate_new_tuple(given_vals, keep_attr_name) for given_vals in given_attr_values_list]
+
+    def generate_and_feed_tuples(self, given_attr_values_list, from_constraint=False, degenerated=False):
+        generated = self.generate_new_tuples(given_attr_values_list)
+        self.feed_tuples(generated, from_constraint, degenerated)
 
     def adjust_tuple_nbrs(self, nbr, from_constraint, degenerated, adding=True):
         # Neither from_constraint nor degenerated -> regular generation
@@ -67,6 +78,12 @@ class RelationInstance:
 
     def get_size(self):
         return len(self.tuples)
+
+    def get_rel_model(self):
+        return self.rel_model
+
+    def get_fixed_attributes(self):
+        return self.attribute_fix
 
     def repr_n_tuples(self, tuples, n=10):
         max_lens = []
