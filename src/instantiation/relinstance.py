@@ -1,4 +1,4 @@
-from operator import add, sub
+from operator import add, sub, itemgetter
 from functools import reduce
 import random
 
@@ -47,9 +47,29 @@ class RelationInstance:
     def generate_new_tuples(self, given_attr_values_list, keep_attr_name=False):
         return [self.generate_new_tuple(given_vals, keep_attr_name) for given_vals in given_attr_values_list]
 
-    def generate_and_feed_tuples(self, given_attr_values_list, from_constraint=False, degenerated=False):
+    def generate_and_feed_tuples(self, given_attr_values_list, from_constraint=False, degenerated=False,
+                                 respect_fk_constraint=True):
         generated = self.generate_new_tuples(given_attr_values_list)
         self.feed_tuples(generated, from_constraint, degenerated)
+        # if some fixed attributes constitute a FK, should return tuples to respect it
+        if not respect_fk_constraint:
+            return generated, {}
+        o_rel_tuples_fk = {}  # to feed as {Relation: [{attr1: val1,..}, {attr1: val1,..}], Relation2: [FK attr vals], }
+        for ind_attr_fk, rel in self.get_ind_fixed_attr_in_fk().items():
+            for tup in generated:
+                # keep subset of generated tuple values considering only attributes in FK referencing rel
+                tup_fk_val = itemgetter(*ind_attr_fk)(tup)
+                tup_fk_attr = itemgetter(*ind_attr_fk)(self.attribute_fix)
+                dict_attr_val = {}
+                for ind in range(len(ind_attr_fk)):
+                    # rebuilding unordered dict {attr1: val1, attr2: val2, ..} where attrN belongs to FK to rel
+                    attr, val = tup_fk_attr[ind], tup_fk_val[ind]
+                    dict_attr_val[attr] = val
+                if o_rel_tuples_fk.get(rel) is None:
+                    o_rel_tuples_fk[rel] = [dict_attr_val]
+                else:
+                    o_rel_tuples_fk[rel].append(dict_attr_val)
+        return generated, o_rel_tuples_fk
 
     def adjust_tuple_nbrs(self, nbr, from_constraint, degenerated, adding=True):
         # Neither from_constraint nor degenerated -> regular generation
@@ -75,6 +95,20 @@ class RelationInstance:
             if selector(test_tuple):
                 result.append(test_tuple[0] if only_values else test_tuple)
         return result
+
+    def get_ind_fixed_attr_in_fk(self):
+        in_fk = {}
+        for fk, rel in self.rel_model.fks.items():
+            all_fk_attr_in_fix = []
+            for attr in fk:
+                try:
+                    all_fk_attr_in_fix.append(self.attribute_fix.index(attr))
+                except ValueError:
+                    all_fk_attr_in_fix = False
+                    break
+            if all_fk_attr_in_fix:
+                in_fk[tuple(all_fk_attr_in_fix)] = rel
+        return in_fk
 
     def get_size(self):
         return len(self.tuples)

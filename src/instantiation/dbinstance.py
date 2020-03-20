@@ -29,15 +29,19 @@ class DBInstance:
                     fk_tuples[o_rel.name] = tuples
                 else:
                     fk_tuples[o_rel.name].extend(tuples)
-
         self.rel_insts = rel_insts
-        print(fk_tuples)
+        
         while fk_tuples:
             rel_name, tuples = fk_tuples.popitem()
             rel_inst = self.rel_insts.get(rel_name, None)
             if rel_inst:
-                rel_inst.generate_and_feed_tuples(tuples, from_constraint=True)
-        return rel_insts, fk_tuples
+                _, fk_generated = rel_inst.generate_and_feed_tuples(tuples, from_constraint=True)
+                for o_rel, o_tuples in fk_generated.items():
+                    if fk_tuples.get(o_rel.name) is None:
+                        fk_tuples[o_rel.name] = o_tuples
+                    else:
+                        fk_tuples[o_rel.name].extend(o_tuples)
+        return rel_insts
 
     def __str__(self):
         s = f"DBInstance with {len(self.rel_insts)} relation instances\n"
@@ -71,5 +75,8 @@ if __name__ == "__main__":
     RRel = Relation("RRel", pk="attr3", attributes=[pk_fk, attr4])
     SRel.add_fk_constraint({"attr3": RRel})
 
-    db = DBInstance([(SRel, 4), (RRel, 0)])
+    TRel = Relation("TRel", pk="attr4", attributes=attr4.__copy__())
+    RRel.add_fk_constraint({"attr4": TRel})
+
+    db = DBInstance([(SRel, 4), (RRel, 0), (TRel, 0)])
     print(db)

@@ -93,8 +93,8 @@ class Relation:
     def get_nonpk_attr(self):
         return [attr for attr in self.attributes if not self.pk_contains(attr)]
 
-    def get_fk_attr(self):
-        return self.attributes.keys()
+    def get_fks_attr(self):
+        return self.fks.keys()
 
     def get_all_attr(self, ordered_by_gen=True):
         if not ordered_by_gen:
