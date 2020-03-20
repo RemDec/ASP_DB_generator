@@ -49,8 +49,10 @@ class Relation:
     def define_pk(self, pk):
         if isinstance(pk, str):
             self.pk = [pk]
+        elif isinstance(pk, AttributeInfo):
+            self.pk = [pk.name]
         elif isinstance(pk, list):
-            self.pk = pk
+            self.pk = [attr.name if isinstance(attr, AttributeInfo) else attr for attr in pk]
         else:
             self.pk = []
         self.verify_pk()

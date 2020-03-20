@@ -40,7 +40,7 @@ class AttributeInfo:
     def get_generated_value(self, other_attr_values=None):
         other_attr_values = {} if other_attr_values is None else other_attr_values
         if other_attr_values.get(self.name) is not None:  # already generated value in ones given
-            return other_attr_values[self.name]
+            return str(other_attr_values[self.name])
         try:
             return str(next(self.generator))  # In case generator is actually a generator/iterable
         except TypeError:

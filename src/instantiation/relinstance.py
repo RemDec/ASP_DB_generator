@@ -1,3 +1,4 @@
+from src.utils.utilfunctions import get_indexes
 from operator import add, sub, itemgetter
 from functools import reduce
 import random
@@ -41,15 +42,35 @@ class RelationInstance:
         self.tuples.extend(formated_tuples)
         self.adjust_tuple_nbrs(len(formated_tuples), from_constraint, degenerated)
 
-    def generate_new_tuple(self, given_attr_values, keep_attr_name=False):
-        return self.rel_model.generate_tuple(given_attr_values, self.attribute_fix, keep_attr_name)
+    def generate_new_tuple(self, given_attr_values, keep_attr_name=False, purge_existing=True, tuples_to_insert=None):
+        tuples_to_insert = [] if tuples_to_insert is None else tuples_to_insert  # grouped adding, detect duplicate
+        generated_tuple = self.rel_model.generate_tuple(given_attr_values, self.attribute_fix, keep_attr_name)
+        if purge_existing:
+            indexes_pk_in_fix = self.get_indexes_in_fixed_attr()
+            # get values from the generated tuples for attributes in the fixed ones also in the PK from the relation
+            values_gen_for_pk = itemgetter(*indexes_pk_in_fix)(generated_tuple)
+            if keep_attr_name:
+                values_gen_for_pk = itemgetter(1)(values_gen_for_pk)
+            for tup in tuples_to_insert:
+                if itemgetter(*indexes_pk_in_fix)(tup) == values_gen_for_pk:
+                    return None  # Duplicate from the PK point of view
+            for tup, _, _ in self.tuples:
+                if itemgetter(*indexes_pk_in_fix)(tup) == values_gen_for_pk:
+                    return None  # Duplicate from the PK point of view
+        return generated_tuple
 
-    def generate_new_tuples(self, given_attr_values_list, keep_attr_name=False):
-        return [self.generate_new_tuple(given_vals, keep_attr_name) for given_vals in given_attr_values_list]
+    def generate_new_tuples(self, given_attr_values_list, keep_attr_name=False, purge_existing=True):
+        gen_tuples = []
+        for given_vals in given_attr_values_list:
+            generated_tuple = self.generate_new_tuple(given_vals, keep_attr_name=keep_attr_name,
+                                                      purge_existing=purge_existing, tuples_to_insert=gen_tuples)
+            if generated_tuple is not None:
+                gen_tuples.append(generated_tuple)
+        return gen_tuples
 
     def generate_and_feed_tuples(self, given_attr_values_list, from_constraint=False, degenerated=False,
-                                 respect_fk_constraint=True):
-        generated = self.generate_new_tuples(given_attr_values_list)
+                                 respect_fk_constraint=True, purge_existing=True):
+        generated = self.generate_new_tuples(given_attr_values_list, purge_existing=purge_existing)
         self.feed_tuples(generated, from_constraint, degenerated)
         # if some fixed attributes constitute a FK, should return tuples to respect it
         if not respect_fk_constraint:
@@ -95,6 +116,10 @@ class RelationInstance:
             if selector(test_tuple):
                 result.append(test_tuple[0] if only_values else test_tuple)
         return result
+
+    def get_indexes_in_fixed_attr(self, target_attr=None):
+        target_attr = self.rel_model.get_pk_attr() if target_attr is None else target_attr
+        return get_indexes(target_attr, self.attribute_fix)
 
     def get_ind_fixed_attr_in_fk(self):
         in_fk = {}
@@ -147,6 +172,13 @@ class RelationInstance:
             s += '\n'
         return s
 
+    def repr_ASP(self):
+        fact_name = self.rel_model.name.lower()
+        s = ""
+        for tup in self.tuples:
+            s += f"{fact_name}({','.join(tup[0]).lower()}).\n"
+        return s
+
     def __str__(self):
         s = f"Instance of {self.rel_model.name}, {self.get_size()} tuples : {self.nbr_generated} (regular)" \
             f" {self.nbr_constrained} (from constraints) {self.nbr_degenerated} (degenerated)\n"
@@ -165,3 +197,4 @@ if __name__ == "__main__":
     inst.feed_tuples([('4', "degenerated")], degenerated=True)
 
     print(inst)
+    print(inst.generate_new_tuple(given_attr_values={"pk": '1'}))

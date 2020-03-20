@@ -2,16 +2,17 @@
 
 class DBInstance:
 
-    def __init__(self, rels_inst_params, respect_fk=True):
-        self.rels_inst_params = rels_inst_params
+    def __init__(self, rels_inst_params, respect_fk=True, generate=True):
+        self.rels_inst_params = []
         self.respect_fk = respect_fk
         self.rel_insts = {}
-        self.generate_instances()
+        self.treat_instantiation_params(rels_inst_params)
+        if generate:
+            self.generate_instances()
 
-    def generate_instances(self):
-        fk_tuples = {}
-        rel_insts = {}
-        for rel, param in self.rels_inst_params:
+    def treat_instantiation_params(self, rels_inst_params):
+        # rels_inst_params list of couples (Relation, param) where param parametrizes instantiation from Relation
+        for rel, param in rels_inst_params:
             # multiple formats allowed for param -> normalize to
             # (param_generation, attr_sequence_order, respect_fk_constraint) as taken by Relation.generate_instance
             if isinstance(param, int):
@@ -21,8 +22,34 @@ class DBInstance:
             elif len(param) == 2:  # nbr tuples + attr_seq_order
                 param = (param[0], param[1], self.respect_fk)
             # if len(param) == 3, respect_fk is given explicitly for this relation
+            self.rels_inst_params.append((rel, param))
+
+    def generate_tuples_from_fks(self, curr_fk_tuples):
+        # curr_fk_tuple as {relname : [{attr1: val1,..}, {attr1: val1,..}], relname2: [...]}
+        # where each {attr: val, attr2: val2} are partially valued attribute of a FK tuple referencing relname
+        while curr_fk_tuples:
+            rel_name, tuples = curr_fk_tuples.popitem()
+            rel_inst = self.rel_insts.get(rel_name, None)
+            if rel_inst:
+                # generate full tuple for rel from partial attribute values from FK constraint
+                _, fk_generated = rel_inst.generate_and_feed_tuples(tuples, from_constraint=True)
+                # if rel had also FK to another rel2, it also generates partial tuple to complete for rel2
+                for o_rel, o_tuples in fk_generated.items():
+                    if curr_fk_tuples.get(o_rel.name) is None:
+                        curr_fk_tuples[o_rel.name] = o_tuples
+                    else:
+                        curr_fk_tuples[o_rel.name].extend(o_tuples)
+
+    def generate_instances(self):
+        fk_tuples = {}
+        rel_insts = {}  # {relname: RelationInstance} where RelationInstance is the one generated from params
+        # generate all regular tuples from instantiation parameters given for each relation
+        for rel, param in self.rels_inst_params:
             rel_inst, gen_fk_tuples = rel.generate_instance(param[0], param[1], param[2])
             rel_insts[rel.name] = rel_inst
+            # keep all partially generated tuples originated from FK constraints in fk_tuples with entries
+            # like relname : [{attr1: val1,..}, {attr1: val1,..}] where {attr1: val1} is a partially generated
+            # tuple for relation relname (attr1 was in a FK referencing relname that has attr1 as PK)
             for o_rel, tuples in gen_fk_tuples.items():
                 already_generated = fk_tuples.get(o_rel.name, False)
                 if not already_generated:
@@ -30,21 +57,21 @@ class DBInstance:
                 else:
                     fk_tuples[o_rel.name].extend(tuples)
         self.rel_insts = rel_insts
-        
-        while fk_tuples:
-            rel_name, tuples = fk_tuples.popitem()
-            rel_inst = self.rel_insts.get(rel_name, None)
-            if rel_inst:
-                _, fk_generated = rel_inst.generate_and_feed_tuples(tuples, from_constraint=True)
-                for o_rel, o_tuples in fk_generated.items():
-                    if fk_tuples.get(o_rel.name) is None:
-                        fk_tuples[o_rel.name] = o_tuples
-                    else:
-                        fk_tuples[o_rel.name].extend(o_tuples)
+        self.generate_tuples_from_fks(fk_tuples)
         return rel_insts
 
+    def repr_ASP(self):
+        s = ""
+        for relinst in self.rel_insts.values():
+            s += relinst.repr_ASP()
+        return s
+
     def __str__(self):
-        s = f"DBInstance with {len(self.rel_insts)} relation instances\n"
+        s = f"DBInstance with {len(self.rel_insts)} relation instances, generated from parameters :\n"
+        for rel, (param_gen, attr_sequence_order, respect_fk_constraint) in self.rels_inst_params:
+            attr_sequence_order = "ALL" if attr_sequence_order is None else ','.join(attr_sequence_order)
+            s += f">Relation {rel.name} : kept attributes={attr_sequence_order} |" \
+                 f" respect FK={respect_fk_constraint} | params for generation={param_gen}\n"
         for name, rel_inst in self.rel_insts.items():
             s += str(rel_inst) + '\n'
         return s
@@ -80,3 +107,4 @@ if __name__ == "__main__":
 
     db = DBInstance([(SRel, 4), (RRel, 0), (TRel, 0)])
     print(db)
+    #print(db.repr_ASP())
