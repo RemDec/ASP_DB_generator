@@ -1,7 +1,7 @@
 from operator import itemgetter
 from src.model.attribute import AttributeInfo
 from src.instantiation.relinstance import RelationInstance
-from src.utils.utilfunctions import single_to_tuple, get_indexes
+from src.utils.utilfunctions import single_to_tuple, get_indexes, normalize_gen_param
 
 
 class KeyMaterialError(ValueError):
@@ -98,6 +98,14 @@ class Relation:
     def get_fks_attr(self):
         return self.fks.keys()
 
+    def is_in_fks(self, attr):
+        if isinstance(attr, AttributeInfo):
+            attr = attr.name
+        for fk in self.fks:
+            if attr in fk:
+                return True
+        return False
+
     def get_all_attr(self, ordered_by_gen=True):
         if not ordered_by_gen:
             in_pk, others = [], []
@@ -168,12 +176,11 @@ class Relation:
 
     def generate_instance(self, param_generation, attr_sequence_order=None, respect_fk_constraint=True):
         # if param_generation is integer, generate as much tuples from empty predetermined given value for some attr
+        # if param_generation is dict, generating 1 tuple considering attr values given in
+        # if param_generation is tuple (n, {attr: val}) generate n tuple considering values given for attr
         # if param_generation list of tuples (n1, {attr:val}), (n2, {attr2:val2}), ... generate n1 tuples considering
         # predetermined value val for attribute attr, n2 tuples with value val2 for attr2, etc.
-        if isinstance(param_generation, int):
-            param_generation = [(param_generation, {})]
-        elif isinstance(param_generation, tuple):
-            param_generation = [param_generation]
+        param_generation = normalize_gen_param(param_generation)
         if attr_sequence_order is None:
             attr_sequence_order = self.get_dflt_attr_sequence()
         got_tuples = []

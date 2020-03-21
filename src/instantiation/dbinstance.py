@@ -11,18 +11,44 @@ class DBInstance:
             self.generate_instances()
 
     def treat_instantiation_params(self, rels_inst_params):
-        # rels_inst_params list of couples (Relation, param) where param parametrizes instantiation from Relation
+        for rel, global_params_for_inst in rels_inst_params.items():
+            param = global_params_for_inst
+            if isinstance(param, int) or isinstance(param, list) or isinstance(param, dict):
+                param = (param, None, self.respect_fk)
+            if isinstance(param, tuple):
+                if len(param) == 1:
+                    param = (param, None, self.respect_fk)
+                elif len(param) == 2:
+                    param = (param[0], param[1], self.respect_fk)
+                else:
+                    param = (param[0], param[1], param[2])
+                # param is now (inst_params, seq_attr, respect_FK) where inst_params is a list of element of 3 forms :
+                #  1. integer nbr of tuples to generate
+                #  2. tuple (nbr, {attr: val}) to generate nbr tuple considering value val for attribute attr
+                #  3. list [tuples of 2.] to generate multiple tuples considering different given val for some attr
+                # inst_params will be passed as-is to function Relation.generate_instance at generation time
+                self.rels_inst_params.append((rel, param))
+
+    def treat_instantiation_params2(self, rels_inst_params):
+        # rels_inst_params list of couples (Relation, param) where param parametrizes a part instantiation from Relation
+        per_relations_all_params = {}  # {rel: list of all normalized params concerning rel in rel_inst_params}
         for rel, param in rels_inst_params:
             # multiple formats allowed for param -> normalize to
             # (param_generation, attr_sequence_order, respect_fk_constraint) as taken by Relation.generate_instance
-            if isinstance(param, int):
-                param = (param,)
-            if len(param) == 1:  # nbr of tuples to generate for rel
-                param = (param[0], None, self.respect_fk)
-            elif len(param) == 2:  # nbr tuples + attr_seq_order
-                param = (param[0], param[1], self.respect_fk)
-            # if len(param) == 3, respect_fk is given explicitly for this relation
-            self.rels_inst_params.append((rel, param))
+            if isinstance(param, int):  # nbr of tuples to generate for rel
+                param = (param, None, self.respect_fk)
+            elif isinstance(param, list):  # list as [(nbr, {attr: val}), (nbr2: {attr2: val2}), ...]
+                param = (param, None, self.respect_fk)
+            else:  # param is a tuple
+                if len(param) == 2:  # tuple as (nbr tuples, attr_seq_order)
+                    param = (param[0], param[1], self.respect_fk)
+                # if len(param) == 3, respect_fk is given explicitly for this relation
+                print("ADD TO INST PARAM ", rel.name, param)
+            if per_relations_all_params.get(rel) is not None:
+                per_relations_all_params[rel].append(param)
+            else:
+                per_relations_all_params[rel] = [param]
+        self.rels_inst_params.append((rel, param))
 
     def generate_tuples_from_fks(self, curr_fk_tuples):
         # curr_fk_tuple as {relname : [{attr1: val1,..}, {attr1: val1,..}], relname2: [...]}
@@ -51,7 +77,7 @@ class DBInstance:
             # like relname : [{attr1: val1,..}, {attr1: val1,..}] where {attr1: val1} is a partially generated
             # tuple for relation relname (attr1 was in a FK referencing relname that has attr1 as PK)
             for o_rel, tuples in gen_fk_tuples.items():
-                already_generated = fk_tuples.get(o_rel.name, False)
+                already_generated = fk_tuples.get(o_rel.name, None)
                 if not already_generated:
                     fk_tuples[o_rel.name] = tuples
                 else:
@@ -72,6 +98,7 @@ class DBInstance:
             attr_sequence_order = "ALL" if attr_sequence_order is None else ','.join(attr_sequence_order)
             s += f">Relation {rel.name} : kept attributes={attr_sequence_order} |" \
                  f" respect FK={respect_fk_constraint} | params for generation={param_gen}\n"
+        s += '\n'
         for name, rel_inst in self.rel_insts.items():
             s += str(rel_inst) + '\n'
         return s

@@ -1,6 +1,7 @@
 from src.model.relation import Relation
 from src.model.attribute import AttributeInfo, AttributeTypes
 from src.instantiation.dbinstance import DBInstance
+from src.utils.utilfunctions import write_db_inst
 from random import randint
 
 if __name__ == "__main__":
@@ -72,8 +73,29 @@ if __name__ == "__main__":
 
     print("Relational models defined :\n", univ, faculties, usedsites, sep='\n')
 
-    # Time to generate some tuples instantiating the whole database from relational model
-    rel_inst_params = [(univ, 10), (faculties, 0), (usedsites, 0)]
-    db = DBInstance(rel_inst_params)
+    # Time to generate some tuples instantiating the whole database from relational model, with diff parameters
 
+    # As UnivMembers has FK-> Faculties and Faculties has FK-> UsedSites, generating tuples only in UnivMembers should
+    # though lead tuples generation in Faculties and after UsedSites to respect FKs (the process is iterative, firstly
+    # generate tuples in Faculties from 'faculty' values in UnivMembers, that further generate tuples in UsedSites from
+    # 'sitelabel' values in Faculties).
+    rel_inst_params1 = {univ: 15, faculties: 0, usedsites: 0}
+
+    # Declaring explicitly myself to uni members, knowing my matricule and a professor whose matricule is unknown
+    # Adding a site for sciences faculty in Charleroi that will generate a new label
+    # The parametrisation of relations instantiations is very flexible
+    rel_inst_params2 = {univ: [10,
+                               (1, {"matricule": 160367, "persid": "remdec", "faculty": "sciences", "role": "student"}),
+                               {"persid": "myprof", "faculty": "sciences", "role": "professor"}
+                               ],
+                        faculties: {"faculty": "sciences", "city": "Charleroi"},
+                        usedsites: 0
+                        }
+
+    rel_inst_params = rel_inst_params1
+    db = DBInstance(rel_inst_params)
     print(db)
+
+    # Create a big database and write it in an ASP-compliant format to query on it via logical programming
+    rel_big_inst_params = {univ: 500000, faculties: 0, usedsites: 0}
+    write_db_inst(DBInstance(rel_big_inst_params), asp=True, printed=False, target_dir="../../outputs")

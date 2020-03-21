@@ -81,6 +81,10 @@ class RelationInstance:
                 # keep subset of generated tuple values considering only attributes in FK referencing rel
                 tup_fk_val = itemgetter(*ind_attr_fk)(tup)
                 tup_fk_attr = itemgetter(*ind_attr_fk)(self.attribute_fix)
+                if not isinstance(tup_fk_attr, tuple):
+                    #  itemgetter does not return tuple if response is a standalone element
+                    tup_fk_val = (tup_fk_val,)
+                    tup_fk_attr = (tup_fk_attr,)
                 dict_attr_val = {}
                 for ind in range(len(ind_attr_fk)):
                     # rebuilding unordered dict {attr1: val1, attr2: val2, ..} where attrN belongs to FK to rel
@@ -148,6 +152,7 @@ class RelationInstance:
         max_lens = []
         sel_tuples = tuples[:n]
         attributes = [f"[{attr}]" if self.rel_model.pk_contains(attr) else attr for attr in self.attribute_fix]
+        attributes = [f"<{attr}>" if self.rel_model.is_in_fks(attr) else attr for attr in attributes]
         for col, attr_name in enumerate(attributes):
             col_attr = [tup[0][col] for tup in sel_tuples]
             max_width_tup_val = reduce(lambda c, s: max(c, len(s)), col_attr, -1)
