@@ -22,33 +22,14 @@ class DBInstance:
                     param = (param[0], param[1], self.respect_fk)
                 else:
                     param = (param[0], param[1], param[2])
-                # param is now (inst_params, seq_attr, respect_FK) where inst_params is a list of element of 3 forms :
+                # param is now (inst_params, seq_attr, respect_FK) where inst_params is a list of elements of 3 forms :
                 #  1. integer nbr of tuples to generate
                 #  2. tuple (nbr, {attr: val}) to generate nbr tuple considering value val for attribute attr
                 #  3. list [tuples of 2.] to generate multiple tuples considering different given val for some attr
                 # inst_params will be passed as-is to function Relation.generate_instance at generation time
                 self.rels_inst_params.append((rel, param))
 
-    def treat_instantiation_params2(self, rels_inst_params):
-        # rels_inst_params list of couples (Relation, param) where param parametrizes a part instantiation from Relation
-        per_relations_all_params = {}  # {rel: list of all normalized params concerning rel in rel_inst_params}
-        for rel, param in rels_inst_params:
-            # multiple formats allowed for param -> normalize to
-            # (param_generation, attr_sequence_order, respect_fk_constraint) as taken by Relation.generate_instance
-            if isinstance(param, int):  # nbr of tuples to generate for rel
-                param = (param, None, self.respect_fk)
-            elif isinstance(param, list):  # list as [(nbr, {attr: val}), (nbr2: {attr2: val2}), ...]
-                param = (param, None, self.respect_fk)
-            else:  # param is a tuple
-                if len(param) == 2:  # tuple as (nbr tuples, attr_seq_order)
-                    param = (param[0], param[1], self.respect_fk)
-                # if len(param) == 3, respect_fk is given explicitly for this relation
-                print("ADD TO INST PARAM ", rel.name, param)
-            if per_relations_all_params.get(rel) is not None:
-                per_relations_all_params[rel].append(param)
-            else:
-                per_relations_all_params[rel] = [param]
-        self.rels_inst_params.append((rel, param))
+    # ---- RELATION INSTANCES GENERATION ----
 
     def generate_tuples_from_fks(self, curr_fk_tuples):
         # curr_fk_tuple as {relname : [{attr1: val1,..}, {attr1: val1,..}], relname2: [...]}
@@ -85,6 +66,8 @@ class DBInstance:
         self.rel_insts = rel_insts
         self.generate_tuples_from_fks(fk_tuples)
         return rel_insts
+
+    # ---- UTILITIES ----
 
     def repr_ASP(self):
         s = ""
@@ -132,6 +115,6 @@ if __name__ == "__main__":
     TRel = Relation("TRel", pk="attr4", attributes=attr4.__copy__())
     RRel.add_fk_constraint({"attr4": TRel})
 
-    db = DBInstance([(SRel, 4), (RRel, 0), (TRel, 0)])
+    db = DBInstance({SRel: 10, RRel: 0, TRel: 0})
     print(db)
     #print(db.repr_ASP())

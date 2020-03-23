@@ -22,6 +22,8 @@ class RelationInstance:
         self.nbr_constrained = 0
         self.nbr_degenerated = 0
 
+    # ---- TUPLES GENERATION AND FEEDING ----
+
     def feed_tuples(self, tuples, from_constraint=False, degenerated=False):
         tuples = [tuples] if not isinstance(tuples, list) else tuples
         formated_tuples = []
@@ -94,6 +96,8 @@ class RelationInstance:
                     o_rel_tuples_fk[rel].append(dict_attr_val)
         return generated, o_rel_tuples_fk
 
+    # ---- UTILITIES ----
+
     def adjust_tuple_nbrs(self, nbr, from_constraint, degenerated, adding=True):
         # Neither from_constraint nor degenerated -> regular generation
         # From_constraint -> generated from another relation, added here to respect FK (+ eventually gen missing attr)
@@ -108,16 +112,27 @@ class RelationInstance:
         if not from_constraint and degenerated:  # degeneration of this instance
             self.nbr_degenerated = op(self.nbr_degenerated, nbr)
 
-    def get_tuples(self, nbr, only_values=True, selector=lambda tuple_info: True, rdm=False):
+    # ---- GETTERS ----
+
+    def get_tuples(self, nbr, only_values=True, selector=lambda tuple_info: True, rdm=False, in_subset=None):
         result = []
-        indexes = range(self.get_size())
+        indexes = range(self.get_size()) if in_subset is None else in_subset.copy()
         if rdm:
             random.shuffle(indexes)
-        for i in range(min(nbr, self.get_size())):
+        for i in range(min(nbr, len(indexes))):
             test_tuple = self.tuples[indexes[i]]
             if selector(test_tuple):
                 result.append(test_tuple[0] if only_values else test_tuple)
         return result
+
+    def get_size(self):
+        return len(self.tuples)
+
+    def get_rel_model(self):
+        return self.rel_model
+
+    def get_fixed_attributes(self):
+        return self.attribute_fix
 
     def get_indexes_in_fixed_attr(self, target_attr=None):
         target_attr = self.rel_model.get_pk_attr() if target_attr is None else target_attr
@@ -136,15 +151,6 @@ class RelationInstance:
             if all_fk_attr_in_fix:
                 in_fk[tuple(all_fk_attr_in_fix)] = rel
         return in_fk
-
-    def get_size(self):
-        return len(self.tuples)
-
-    def get_rel_model(self):
-        return self.rel_model
-
-    def get_fixed_attributes(self):
-        return self.attribute_fix
 
     def repr_n_tuples(self, tuples, n=10):
         max_lens = []

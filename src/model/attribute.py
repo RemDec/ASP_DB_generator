@@ -34,6 +34,8 @@ class AttributeInfo:
         self.order = max(gen_order, 0)
         self.desc = desc
 
+    # ---- GENERATOR INTERACTIONS ----
+
     def reset_generator(self):
         self.generator = self.get_generator_fun(self.attr_type)
 
@@ -45,6 +47,8 @@ class AttributeInfo:
             return str(next(self.generator))  # In case generator is actually a generator/iterable
         except TypeError:
             return str(self.generator(other_attr_values))
+
+    # ---- GETTERS ----
 
     def get_gen_order(self):
         return self.order

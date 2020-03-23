@@ -21,6 +21,8 @@ class Relation:
         self.define_pk(pk)
         self.fks = {}
 
+    # ---- SCHEMA ATTR MANIPULATIONS ----
+
     def add_attribute(self, attrib_info, pk=False, name=None):
         name_in_rel = attrib_info.name if name is None else name
         self.attributes[name_in_rel] = attrib_info
@@ -65,82 +67,11 @@ class Relation:
                 raise KeyMaterialError(f"Inconsistent PK : attribute {attr} not in relation {self.name}", self)
         return True
 
-    def pk_contains(self, attrs):
-        attrs = single_to_tuple(attrs)
-        for attr in attrs:
-            if not(attr in self.pk):
-                return False
-        return True
-
-    def constitute_fk(self, attrs):
-        attrs = single_to_tuple(attrs)
-        return self.fks.get(attrs)
-
-    def get_belongs_fk(self, attrs):
-        attrs = single_to_tuple(attrs)
-        found_fk = []
-        for fk in self.fks:
-            ok = True
-            for attr in attrs:
-                if not(attr in fk):
-                    ok = False
-                    break
-            if ok:
-                found_fk.append(fk)
-        return found_fk
-
-    def get_pk_attr(self):
-        return self.pk.copy()
-
-    def get_nonpk_attr(self):
-        return [attr for attr in self.attributes if not self.pk_contains(attr)]
-
-    def get_fks_attr(self):
-        return self.fks.keys()
-
-    def is_in_fks(self, attr):
-        if isinstance(attr, AttributeInfo):
-            attr = attr.name
-        for fk in self.fks:
-            if attr in fk:
-                return True
-        return False
-
-    def get_all_attr(self, ordered_by_gen=True):
-        if not ordered_by_gen:
-            in_pk, others = [], []
-            for attr in self.attributes:
-                if self.pk_contains(attr):
-                    in_pk.append(attr)
-                else:
-                    others.append(attr)
-        else:
-            non_pk_attr = self.get_nonpk_attr()
-            in_pk = map(itemgetter(1), self.get_attr_infos(self.pk))
-            others = map(itemgetter(1), self.get_attr_infos(non_pk_attr))
-        return list(in_pk), list(others)
-
-    def get_dflt_attr_sequence(self):
-        pk_attr, others_attr = self.get_all_attr()
-        return pk_attr + others_attr
-
-    def get_attr_infos(self, attributes, sort_them=True):
-        # retrieve attributes info objects and may sort these using order value to follow for tuple generation
-        attributes = single_to_tuple(attributes)
-        info = []
-        for attr in attributes:
-            if attr in self.attributes:
-                info.append((self.attributes[attr], attr))  # formatted as (AttributeInfo, attr_name_in_rel)
-        return sorted(info) if sort_them else info
+    # ---- TUPLES/INSTANCES GENERATION FROM SCHEMA ----
 
     def reset_attr_generators(self):
         for attr_infos in self.attributes.values():
             attr_infos.reset_generator()
-
-    def generate_tuple_missing_val(self, attr_info_missing, already_known_val):
-        for attr_info, attr_name in attr_info_missing:  # assuming it's ordered following generation order
-            # generate value for attr considering all previous value already generated for others (with <= order)
-            already_known_val[attr_name] = attr_info.get_generated_value(already_known_val)  # side-effect on dict
 
     def fix_tuple_values(self, valued_attributes, attr_sequence_order=None, keep_attr_name=True):
         # from generated tuple values, fix them following a given sequence of attributes name, return corresp. values
@@ -157,6 +88,11 @@ class Relation:
                 err = f"Queried attribute {attr_name} wasn't generated in the tuple for relation {self.name}"
                 raise KeyMaterialError(err, self)
         return tuple(tup)
+
+    def generate_tuple_missing_val(self, attr_info_missing, already_known_val):
+        for attr_info, attr_name in attr_info_missing:  # assuming it's ordered following generation order
+            # generate value for attr considering all previous value already generated for others (with <= order)
+            already_known_val[attr_name] = attr_info.get_generated_value(already_known_val)  # side-effect on dict
 
     def generate_tuple(self, given_attr_values, attr_sequence_order=None, keep_attr_name=True):
         attr_pk_not_valued, attr_not_valued = [], []
@@ -186,6 +122,78 @@ class Relation:
         _, o_rel_tuples_fk = rel_inst.generate_and_feed_tuples(tuples_with_given_vals, respect_pk=respect_pk,
                                                                respect_fk_constraint=respect_fk_constraint)
         return rel_inst, o_rel_tuples_fk
+
+    # ---- UTILITIES ----
+
+    def is_in_fks(self, attr):
+        if isinstance(attr, AttributeInfo):
+            attr = attr.name
+        for fk in self.fks:
+            if attr in fk:
+                return True
+        return False
+
+    def pk_contains(self, attrs):
+        attrs = single_to_tuple(attrs)
+        for attr in attrs:
+            if not(attr in self.pk):
+                return False
+        return True
+
+    def constitute_fk(self, attrs):
+        attrs = single_to_tuple(attrs)
+        return self.fks.get(attrs)
+
+    # ---- GETTERS ----
+
+    def get_belongs_fk(self, attrs):
+        attrs = single_to_tuple(attrs)
+        found_fk = []
+        for fk in self.fks:
+            ok = True
+            for attr in attrs:
+                if not(attr in fk):
+                    ok = False
+                    break
+            if ok:
+                found_fk.append(fk)
+        return found_fk
+
+    def get_pk_attr(self):
+        return self.pk.copy()
+
+    def get_nonpk_attr(self):
+        return [attr for attr in self.attributes if not self.pk_contains(attr)]
+
+    def get_fks_attr(self):
+        return self.fks.keys()
+
+    def get_all_attr(self, ordered_by_gen=True):
+        if not ordered_by_gen:
+            in_pk, others = [], []
+            for attr in self.attributes:
+                if self.pk_contains(attr):
+                    in_pk.append(attr)
+                else:
+                    others.append(attr)
+        else:
+            non_pk_attr = self.get_nonpk_attr()
+            in_pk = map(itemgetter(1), self.get_attr_infos(self.pk))
+            others = map(itemgetter(1), self.get_attr_infos(non_pk_attr))
+        return list(in_pk), list(others)
+
+    def get_dflt_attr_sequence(self):
+        pk_attr, others_attr = self.get_all_attr()
+        return pk_attr + others_attr
+
+    def get_attr_infos(self, attributes, sort_them=True):
+        # retrieve attributes info objects and may sort these using order value to follow for tuple generation
+        attributes = single_to_tuple(attributes)
+        info = []
+        for attr in attributes:
+            if attr in self.attributes:
+                info.append((self.attributes[attr], attr))  # formatted as (AttributeInfo, attr_name_in_rel)
+        return sorted(info) if sort_them else info
 
     def __copy__(self):
         copy_rel = Relation(self.name, attributes=self.attributes.copy(), pk=self.pk.copy())
