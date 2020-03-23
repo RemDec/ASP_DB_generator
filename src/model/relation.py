@@ -174,36 +174,17 @@ class Relation:
         # fix values of generated tuple in sequence order given, return it as a tuple ((attr1, val1), (attr2, val2),...)
         return self.fix_tuple_values(given_attr_values, attr_sequence_order, keep_attr_name)
 
-    def generate_instance(self, param_generation, attr_sequence_order=None, respect_fk_constraint=True):
-        # if param_generation is integer, generate as much tuples from empty predetermined given value for some attr
-        # if param_generation is dict, generating 1 tuple considering attr values given in
-        # if param_generation is tuple (n, {attr: val}) generate n tuple considering values given for attr
-        # if param_generation list of tuples (n1, {attr:val}), (n2, {attr2:val2}), ... generate n1 tuples considering
-        # predetermined value val for attribute attr, n2 tuples with value val2 for attr2, etc.
+    def generate_instance(self, param_generation, attr_sequence_order=None, respect_fk_constraint=True, respect_pk=True):
         param_generation = normalize_gen_param(param_generation)
         if attr_sequence_order is None:
             attr_sequence_order = self.get_dflt_attr_sequence()
-        got_tuples = []
-        indexes_attr_to_keep = {}
-        o_rel_tuples_fk = {}  # of the form {Relation: [{attr1: val1, attr2: val2}, {attr1: val1, attr2: val2}, ...],..}
-        if respect_fk_constraint:  # for each fk, have to extract tuple values that should appear on referenced relation
-            for fk_attr, other_rel in self.fks.items():
-                indexes = get_indexes(fk_attr, attr_sequence_order)  # indexes of FK attr in the sequence
-                if indexes:
-                    indexes_attr_to_keep[other_rel] = indexes
-                    o_rel_tuples_fk[other_rel] = []
-        # generate tuples value order considering sequence and may extract values for referenced other rel to respect fk
-        for n, given_attr_values in param_generation:
-            for _ in range(n):
-                new_tuple = self.generate_tuple(given_attr_values, attr_sequence_order, keep_attr_name=False)
-                got_tuples.append(new_tuple)
-                for o_rel, inds in indexes_attr_to_keep.items():
-                    fk_attr_with_val = {}  # to feed like {attr1: val1, attr2: val2, ...} where attr in fk ref. o_rel
-                    for ind in inds:
-                        fk_attr_with_val[attr_sequence_order[ind]] = new_tuple[ind]
-                    o_rel_tuples_fk[o_rel].append(fk_attr_with_val)
-        rel_inst = RelationInstance(self.__copy__(), attr_sequence_order, init_tuples=got_tuples)
-        self.reset_attr_generators()  # any new instance generated from this relation shouldn't depend previous one
+        tuples_with_given_vals = []
+        for nbr_tuples, given_attr_vals in param_generation:
+            # from entries (nbr, {attr1: val1, attr2, val2}) to {attr1: val1, attr2, val2} nbr times in a list
+            tuples_with_given_vals.extend([given_attr_vals]*nbr_tuples)
+        rel_inst = RelationInstance(self.__copy__(), attr_sequence_order)
+        _, o_rel_tuples_fk = rel_inst.generate_and_feed_tuples(tuples_with_given_vals, respect_pk=respect_pk,
+                                                               respect_fk_constraint=respect_fk_constraint)
         return rel_inst, o_rel_tuples_fk
 
     def __copy__(self):

@@ -19,6 +19,7 @@ def stringify_given_attr(given_attr_value):
 
 
 def normalize_gen_param(param_generation):
+    # return [(nbr, given_attr_vals1), (nbr2, given_attr_vals2), ...]
     if isinstance(param_generation, int):
         return [(param_generation, {})]
     elif isinstance(param_generation, tuple):

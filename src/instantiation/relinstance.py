@@ -13,7 +13,7 @@ class SchemaError(ValueError):
 
 class RelationInstance:
 
-    def __init__(self, rel_model, attribute_fix, init_tuples=None):
+    def __init__(self, rel_model, attribute_fix):
         self.rel_model = rel_model
         self.name = rel_model.name
         self.attribute_fix = attribute_fix
@@ -21,8 +21,6 @@ class RelationInstance:
         self.nbr_generated = 0
         self.nbr_constrained = 0
         self.nbr_degenerated = 0
-        if init_tuples is not None:
-            self.feed_tuples(init_tuples)
 
     def feed_tuples(self, tuples, from_constraint=False, degenerated=False):
         tuples = [tuples] if not isinstance(tuples, list) else tuples
@@ -42,16 +40,16 @@ class RelationInstance:
         self.tuples.extend(formated_tuples)
         self.adjust_tuple_nbrs(len(formated_tuples), from_constraint, degenerated)
 
-    def generate_new_tuple(self, given_attr_values, keep_attr_name=False, purge_existing=True, tuples_to_insert=None):
-        tuples_to_insert = [] if tuples_to_insert is None else tuples_to_insert  # grouped adding, detect duplicate
+    def generate_new_tuple(self, given_attr_values, keep_attr_name=False, respect_pk=True, o_tuples_to_insert=None):
+        o_tuples_to_insert = [] if o_tuples_to_insert is None else o_tuples_to_insert  # in case grouped insertion
         generated_tuple = self.rel_model.generate_tuple(given_attr_values, self.attribute_fix, keep_attr_name)
-        if purge_existing:
+        if respect_pk:
             indexes_pk_in_fix = self.get_indexes_in_fixed_attr()
             # get values from the generated tuples for attributes in the fixed ones also in the PK from the relation
             values_gen_for_pk = itemgetter(*indexes_pk_in_fix)(generated_tuple)
             if keep_attr_name:
                 values_gen_for_pk = itemgetter(1)(values_gen_for_pk)
-            for tup in tuples_to_insert:
+            for tup in o_tuples_to_insert:
                 if itemgetter(*indexes_pk_in_fix)(tup) == values_gen_for_pk:
                     return None  # Duplicate from the PK point of view
             for tup, _, _ in self.tuples:
@@ -59,18 +57,18 @@ class RelationInstance:
                     return None  # Duplicate from the PK point of view
         return generated_tuple
 
-    def generate_new_tuples(self, given_attr_values_list, keep_attr_name=False, purge_existing=True):
+    def generate_new_tuples(self, given_attr_values_list, keep_attr_name=False, respect_pk=True):
         gen_tuples = []
         for given_vals in given_attr_values_list:
             generated_tuple = self.generate_new_tuple(given_vals, keep_attr_name=keep_attr_name,
-                                                      purge_existing=purge_existing, tuples_to_insert=gen_tuples)
+                                                      respect_pk=respect_pk, o_tuples_to_insert=gen_tuples)
             if generated_tuple is not None:
                 gen_tuples.append(generated_tuple)
         return gen_tuples
 
     def generate_and_feed_tuples(self, given_attr_values_list, from_constraint=False, degenerated=False,
-                                 respect_fk_constraint=True, purge_existing=True):
-        generated = self.generate_new_tuples(given_attr_values_list, purge_existing=purge_existing)
+                                 respect_fk_constraint=True, respect_pk=True):
+        generated = self.generate_new_tuples(given_attr_values_list, respect_pk=respect_pk)
         self.feed_tuples(generated, from_constraint, degenerated)
         # if some fixed attributes constitute a FK, should return tuples to respect it
         if not respect_fk_constraint:

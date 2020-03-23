@@ -85,17 +85,17 @@ if __name__ == "__main__":
     # Adding a site for sciences faculty in Charleroi that will generate a new label
     # The parametrisation of relations instantiations is very flexible
     rel_inst_params2 = {univ: [10,
-                               (1, {"matricule": 160367, "persid": "remdec", "faculty": "sciences", "role": "student"}),
+                               (1, {"matricule": 10, "persid": "remdec", "faculty": "sciences", "role": "student"}),
                                {"persid": "myprof", "faculty": "sciences", "role": "professor"}
                                ],
                         faculties: {"faculty": "sciences", "city": "Charleroi"},
                         usedsites: 0
                         }
 
-    rel_inst_params = rel_inst_params1
+    rel_inst_params = rel_inst_params2
     db = DBInstance(rel_inst_params)
     print(db)
 
     # Create a big database and write it in an ASP-compliant format to query on it via logical programming
-    rel_big_inst_params = {univ: 500000, faculties: 0, usedsites: 0}
-    write_db_inst(DBInstance(rel_big_inst_params), asp=True, printed=False, target_dir="../../outputs")
+    #rel_big_inst_params = {univ: 500000, faculties: 0, usedsites: 0}
+    #write_db_inst(DBInstance(rel_big_inst_params), asp=True, printed=False, target_dir="../../outputs")
