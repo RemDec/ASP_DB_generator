@@ -75,9 +75,44 @@ class RelationInstance:
         # if some fixed attributes constitute a FK, should return tuples to respect it
         if not respect_fk_constraint:
             return generated, {}
+        o_rel_fk_attr_values = self.generate_fk_attr_vals(generated)
+        return generated, o_rel_fk_attr_values
+
+    # ---- TUPLES DEGENERATION ----
+
+    def form_given_attr_values(self, from_tuple, fixed_attrs_list):
+        given_attr_vals = {}
+        indexes = self.get_indexes_in_fixed_attr(fixed_attrs_list)
+        for ind in indexes:
+            attr_name = self.attribute_fix[ind]
+            given_attr_vals[attr_name] = from_tuple[ind]
+        return given_attr_vals
+
+    def degenerate_tuples_at_inds(self, indexes, fixed_attrs=None):
+        if fixed_attrs is None:
+            pk_indexes = self.get_indexes_in_fixed_attr()
+            fixed_attrs = itemgetter(*pk_indexes)(self.attribute_fix)
+            if not isinstance(fixed_attrs, tuple):
+                fixed_attrs = (fixed_attrs,)
+        given_attr_vals_list = []
+        for ind in indexes:
+            given_attr_vals_list.append(self.form_given_attr_values(self[ind][0], fixed_attrs))
+        return self.generate_new_tuples(given_attr_vals_list, respect_pk=False)
+
+    def degenerate_and_feed_tuples_at_inds(self, indexes, fixed_attrs=None, respect_fk_constraints=True):
+        degenerated = self.degenerate_tuples_at_inds(indexes, fixed_attrs=fixed_attrs)
+        self.feed_tuples(degenerated, from_constraint=False, degenerated=True)
+        if not respect_fk_constraints:
+            return degenerated, {}
+        o_rel_fk_attr_values = self.generate_fk_attr_vals(degenerated)
+        return degenerated, o_rel_fk_attr_values
+
+    # ---- TUPLES GENERATION FROM FK CONSTRAINTS ----
+
+    def generate_fk_attr_vals(self, fed_tuples):
         o_rel_tuples_fk = {}  # to feed as {Relation: [{attr1: val1,..}, {attr1: val1,..}], Relation2: [FK attr vals], }
         for ind_attr_fk, rel in self.get_ind_fixed_attr_in_fk().items():
-            for tup in generated:
+            for tup in fed_tuples:
                 # keep subset of generated tuple values considering only attributes in FK referencing rel
                 tup_fk_val = itemgetter(*ind_attr_fk)(tup)
                 tup_fk_attr = itemgetter(*ind_attr_fk)(self.attribute_fix)
@@ -94,7 +129,7 @@ class RelationInstance:
                     o_rel_tuples_fk[rel] = [dict_attr_val]
                 else:
                     o_rel_tuples_fk[rel].append(dict_attr_val)
-        return generated, o_rel_tuples_fk
+        return o_rel_tuples_fk
 
     # ---- UTILITIES ----
 
@@ -114,6 +149,22 @@ class RelationInstance:
 
     # ---- GETTERS ----
 
+    def get_tuples_indexes(self, nbr, selector=None, rdm_selection=False):
+        nbr = min(nbr, self.get_size())
+        poss_indexes = list(range(self.get_size()))
+        if rdm_selection:
+            random.shuffle(poss_indexes)
+        if selector is None:
+            return poss_indexes[:nbr]
+        slcted = []
+        for ind in poss_indexes:
+            if len(slcted) >= nbr:
+                return slcted
+            ind_to_check = poss_indexes[ind]
+            if selector(self[ind_to_check]):
+                slcted.append(ind_to_check)
+        return slcted
+
     def get_tuples(self, nbr, only_values=True, selector=lambda tuple_info: True, rdm=False, in_subset=None):
         result = []
         indexes = range(self.get_size()) if in_subset is None else in_subset.copy()
@@ -130,6 +181,9 @@ class RelationInstance:
 
     def get_rel_model(self):
         return self.rel_model
+
+    def get_name(self):
+        return self.rel_model.name
 
     def get_fixed_attributes(self):
         return self.attribute_fix
@@ -193,6 +247,9 @@ class RelationInstance:
             f" {self.nbr_constrained} (from constraints) {self.nbr_degenerated} (degenerated)\n"
         return s + self.repr_n_tuples(self.tuples, self.get_size())
 
+    def __getitem__(self, item):
+        return self.tuples[item]
+
 
 if __name__ == "__main__":
     from src.model.relation import Relation
@@ -206,4 +263,9 @@ if __name__ == "__main__":
     inst.feed_tuples([('4', "degenerated")], degenerated=True)
 
     print(inst)
-    print(inst.generate_new_tuple(given_attr_values={"pk": '1'}))
+#    print(inst.generate_new_tuple(given_attr_values={"pk": '1'}))
+#    print(inst.get_tuples_indexes(10, selector=lambda t: t[0][0] > "1", rdm_selection=True))
+
+    # print(inst.degenerate_tuples_at_inds([0, 1]))
+    inst.degenerate_and_feed_tuples_at_inds([0,1])
+    print(inst)

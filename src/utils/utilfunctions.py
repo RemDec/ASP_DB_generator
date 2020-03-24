@@ -18,6 +18,13 @@ def stringify_given_attr(given_attr_value):
     return stringed
 
 
+def fill_tuple_dflt_vals(given_tuple, dflt_vals):
+    from_ind = len(given_tuple)
+    for i in range(from_ind, len(dflt_vals)):
+        given_tuple = given_tuple + (dflt_vals[i],)
+    return given_tuple
+
+
 def normalize_gen_param(param_generation):
     # return [(nbr, given_attr_vals1), (nbr2, given_attr_vals2), ...]
     if isinstance(param_generation, int):
@@ -66,3 +73,4 @@ if __name__ == "__main__":
     print(get_indexes(["attr1", "attr0", "attrY"], ["attr0", "attr2", "attr1", "attrX"]))
     params = [5, 10, (1, {"attr": "val"}), 7, (9, {"attr2": "val2", "attr3": "val3"}), [88, (78, {})], {"aX": "valY"}]
     print(normalize_gen_param(params))
+    print(fill_tuple_dflt_vals((0, 1), (None, None, "toadd", "tadd2")))

@@ -1,3 +1,5 @@
+from src.utils.utilfunctions import fill_tuple_dflt_vals
+from src.model.relation import Relation
 
 
 class DBInstance:
@@ -5,29 +7,10 @@ class DBInstance:
     def __init__(self, rels_inst_params, respect_fk=True, generate=True):
         self.rels_inst_params = []
         self.respect_fk = respect_fk
-        self.rel_insts = {}
+        self.rel_insts = {}  # to fill as {relname: RelInstance} where RelInstance will be the one generated from params
         self.treat_instantiation_params(rels_inst_params)
         if generate:
             self.generate_instances()
-
-    def treat_instantiation_params(self, rels_inst_params):
-        for rel, global_params_for_inst in rels_inst_params.items():
-            param = global_params_for_inst
-            if isinstance(param, int) or isinstance(param, list) or isinstance(param, dict):
-                param = (param, None, self.respect_fk)
-            if isinstance(param, tuple):
-                if len(param) == 1:
-                    param = (param, None, self.respect_fk)
-                elif len(param) == 2:
-                    param = (param[0], param[1], self.respect_fk)
-                else:
-                    param = (param[0], param[1], param[2])
-                # param is now (inst_params, seq_attr, respect_FK) where inst_params is a list of elements of 3 forms :
-                #  1. integer nbr of tuples to generate
-                #  2. tuple (nbr, {attr: val}) to generate nbr tuple considering value val for attribute attr
-                #  3. list [tuples of 2.] to generate multiple tuples considering different given val for some attr
-                # inst_params will be passed as-is to function Relation.generate_instance at generation time
-                self.rels_inst_params.append((rel, param))
 
     # ---- RELATION INSTANCES GENERATION ----
 
@@ -67,7 +50,75 @@ class DBInstance:
         self.generate_tuples_from_fks(fk_tuples)
         return rel_insts
 
+    # ---- RELATION INSTANCES DEGENERATION ----
+
+    def degenerate_inst(self, rel, nbr, fixed_attr=None, selector=None, rdm_selection=False,
+                        respect_fk_constraint=True):
+        rel_inst = self.get_rel_inst(rel)
+        tuples_indexes = rel_inst.get_tuples_indexes(nbr, selector=selector, rdm_selection=rdm_selection)
+        # return degenerated_tuples_list, o_rel_fk_attr_values_dict
+        return rel_inst.degenare_and_feed_tuples_at_inds(tuples_indexes, fixed_attr=fixed_attr,
+                                                         respect_fk_constraint=respect_fk_constraint)
+
+    def degenerate_insts(self, insts_deg_params, respect_fk_constraints=True):
+        insts_deg_params = self.treat_degenaration_params(insts_deg_params)
+        fk_tuples = {}
+        for rel_inst, deg_params in insts_deg_params.items():
+            nbr, fixed_attrs, selector_fct, rdm_slct = deg_params
+            tuples_indexes = rel_inst.get_tuples_indexes(nbr, selector=selector_fct, rdm_selection=rdm_slct)
+            _, deg_fk_tuples = rel_inst.degenerate_and_feed_tuples_at_inds(tuples_indexes, fixed_attrs=fixed_attrs,
+                                                                           respect_fk_constraints=respect_fk_constraints)
+            self.fill_fk_tuples_per_rel(fk_tuples, deg_fk_tuples)
+        self.generate_tuples_from_fks(fk_tuples)
+
     # ---- UTILITIES ----
+
+    def treat_instantiation_params(self, rels_inst_params):
+        for rel, global_params_for_inst in rels_inst_params.items():
+            param = global_params_for_inst
+            if isinstance(param, int) or isinstance(param, list) or isinstance(param, dict):
+                param = (param, None, self.respect_fk)
+            if isinstance(param, tuple):
+                if len(param) == 1:
+                    param = (param, None, self.respect_fk)
+                elif len(param) == 2:
+                    param = (param[0], param[1], self.respect_fk)
+                else:
+                    param = (param[0], param[1], param[2])
+                # param is now (inst_params, seq_attr, respect_FK) where inst_params is a list of elements of 3 forms :
+                #  1. integer nbr of tuples to generate
+                #  2. tuple (nbr, {attr: val}) to generate nbr tuple considering value val for attribute attr
+                #  3. list [tuples of 2.] to generate multiple tuples considering different given val for some attr
+                # inst_params will be passed as-is to function Relation.generate_instance at generation time
+                self.rels_inst_params.append((rel, param))
+
+    def treat_degenaration_params(self, rels_deg_params):
+        treated_params = {}
+        for rel, degeneration_params in rels_deg_params.items():
+            rel_inst = self.get_rel_inst(rel)
+            param = degeneration_params
+            if isinstance(param, int):
+                param = (param,)
+            param = fill_tuple_dflt_vals(param, (0, None, None, False))
+            # param is now as (nbr_to_deg, fixed_attrs, selector_fct, rdm_select)
+            treated_params[rel_inst] = param
+        return treated_params
+
+    def fill_fk_tuples_per_rel(self, curr_fk_tuples_per_rel, new_generated_fk_tuples):
+        for o_rel, tuples in new_generated_fk_tuples.items():
+            already_generated = curr_fk_tuples_per_rel.get(o_rel.name, None)
+            if not already_generated:
+                curr_fk_tuples_per_rel[o_rel.name] = tuples
+            else:
+                curr_fk_tuples_per_rel[o_rel.name].extend(tuples)
+
+    # ---- GETTERS ----
+
+    def get_rel_inst(self, rel):
+        if isinstance(rel, str):
+            return self.rel_insts.get(rel)
+        elif isinstance(rel, Relation):
+            return self.rel_insts.get(rel.name)
 
     def repr_ASP(self):
         s = ""
@@ -91,8 +142,10 @@ if __name__ == "__main__":
     from src.model.attribute import AttributeInfo, AttributeTypes
     from src.model.relation import Relation
 
+
     def compose_attr3(other_attr_value):
         return other_attr_value.get("attr1", "UNK") + '-' + other_attr_value.get("attr2", "UNK")
+
 
     pk_int = AttributeInfo("impk", attr_type=AttributeTypes.incr_int)
     attr1 = AttributeInfo("attr1", desc="random integer")
@@ -117,4 +170,4 @@ if __name__ == "__main__":
 
     db = DBInstance({SRel: 10, RRel: 0, TRel: 0})
     print(db)
-    #print(db.repr_ASP())
+    # print(db.repr_ASP())

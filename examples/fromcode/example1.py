@@ -97,5 +97,6 @@ if __name__ == "__main__":
     print(db)
 
     # Create a big database and write it in an ASP-compliant format to query on it via logical programming
-    #rel_big_inst_params = {univ: 500000, faculties: 0, usedsites: 0}
-    #write_db_inst(DBInstance(rel_big_inst_params), asp=True, printed=False, target_dir="../../outputs")
+
+    # rel_big_inst_params = {univ: 500000, faculties: 0, usedsites: 0}
+    # write_db_inst(DBInstance(rel_big_inst_params), asp=True, printed=False, target_dir="../../outputs")
