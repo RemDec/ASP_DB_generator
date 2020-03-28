@@ -5,7 +5,7 @@ from src.utils.utilfunctions import write_db_inst
 from random import randint
 
 if __name__ == "__main__":
-    # ---- TABLES ----
+    # ---- TABLES (reuse same schema like example1) ----
     # --- UNIVMEMBERS
     matricule = AttributeInfo("matricule", attr_type=AttributeTypes.incr_int,
                               desc="Registration number in university system")
@@ -53,12 +53,15 @@ if __name__ == "__main__":
 
     print("Relational models defined :\n", univ, faculties, usedsites, sep='\n')
 
-    # ---- INSTANTIATION ----
-    rel_inst_params = {univ: [10,
-                              (1, {"matricule": 10, "persid": "remdec", "faculty": "sciences", "role": "student"}),
-                              {"persid": "myprof", "faculty": "sciences", "role": "professor"}
-                              ],
-                       faculties: {"faculty": "sciences", "city": "Charleroi"},
+    # ---- INSTANTIATION and DEGENERATION ----
+    # restrict faculty attribute values in UnivMember to only 1 of the 5 available values, for the initially generated
+    # tuples. Once done, degenerate 5 of the 10 generated tuples based on the PK, that is generated tuples from will
+    # have an already existing value for 'matricule" and from it, generate new values for other attributes. So, new
+    # tuples should have different values for 'faculty' than the one fixed, and as it's a FK referencing Faculties
+    # table, new tuples should also be generated from. The process works in the same iterative way than example1, so
+    # UsedSites will also be fill to respect FK constraint on Faculties.
+    rel_inst_params = {univ: [(10, {"faculty": "sciences"})],
+                       faculties: 0,
                        usedsites: 0
                        }
 
@@ -67,5 +70,12 @@ if __name__ == "__main__":
     print(db)
 
     degeneration_params = {univ: 5}
+    # Select tuples to degenerate randomly among all in table
+    # degeneration_params = {univ: (5, True, None, None)}
+    # Degenerate only tuples whose 'role' is professor (max 5)
+    # degeneration_params = {univ: (5, False, lambda t: t[0][3] == "professor", None)}
+    # Degenerate random tuples but fix 'matricule' and 'persid', resulting tuples keep values for these attributes
+    # degeneration_params = {univ: (5, True, None, ["matricule", "persid"])}
+
     db.degenerate_insts(degeneration_params)
     print(db)

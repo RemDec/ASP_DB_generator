@@ -150,6 +150,30 @@ class RelationInstance:
     # ---- GETTERS ----
 
     def get_tuples_indexes(self, nbr, selector=None, rdm_selection=False):
+        if nbr <= self.get_size():
+            enough = (True, 0)
+        else:
+            enough = (False, nbr - self.get_size())
+            nbr = self.get_size()
+        poss_indexes = list(range(self.get_size()))
+        if rdm_selection:
+            random.shuffle(poss_indexes)
+        if selector is None:
+            slcted = poss_indexes[:nbr]
+        else:
+            slcted = []
+            for ind in poss_indexes:
+                if len(slcted) >= nbr:
+                    return slcted
+                ind_to_check = poss_indexes[ind]
+                if selector(self[ind_to_check]):
+                    slcted.append(ind_to_check)
+        if not enough[0]:  # need to repick additional indexes in the selected ones
+            times_whole_slcted, remaining = divmod(enough[1], len(slcted))
+            slcted.extend(slcted*times_whole_slcted + slcted[:remaining])
+        return slcted
+
+    def get_tuples_indexes2(self, nbr, selector=None, rdm_selection=False):
         nbr = min(nbr, self.get_size())
         poss_indexes = list(range(self.get_size()))
         if rdm_selection:

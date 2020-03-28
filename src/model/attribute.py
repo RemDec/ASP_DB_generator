@@ -9,17 +9,23 @@ class AttributeTypes(enum.Enum):
     date = "DATE"
     incr_int = "INTEGER_INCR"
     incr_str = "STRING_INCR"
+    word_str = "WORD_STR"
+    boolean = "BOOLEAN"
 
 
 def dflt_gen_for_type(attr_type):
     if attr_type == AttributeTypes.int:
-        return generators.get_generator_rdm_int()
+        return generators.generator_rdm_int()
     if attr_type == AttributeTypes.incr_int:
-        return generators.get_generator_increment_int()
+        return generators.generator_increment_int()
     if attr_type == AttributeTypes.str:
-        return generators.get_generator_rdm_str()
+        return generators.generator_rdm_str()
     if attr_type == AttributeTypes.incr_str:
-        return generators.get_generator_increment_str()
+        return generators.generator_increment_str()
+    if attr_type == AttributeTypes.word_str:
+        return generators.generator_word()
+    if attr_type == AttributeTypes.boolean:
+        return generators.generator_rdm_bool()
 
 
 class AttributeInfo:

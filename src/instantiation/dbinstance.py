@@ -60,14 +60,14 @@ class DBInstance:
         return rel_inst.degenare_and_feed_tuples_at_inds(tuples_indexes, fixed_attr=fixed_attr,
                                                          respect_fk_constraint=respect_fk_constraint)
 
-    def degenerate_insts(self, insts_deg_params, respect_fk_constraints=True):
+    def degenerate_insts(self, insts_deg_params):
         insts_deg_params = self.treat_degenaration_params(insts_deg_params)
         fk_tuples = {}
         for rel_inst, deg_params in insts_deg_params.items():
-            nbr, fixed_attrs, selector_fct, rdm_slct = deg_params
+            nbr, rdm_slct, selector_fct, fixed_attrs = deg_params
             tuples_indexes = rel_inst.get_tuples_indexes(nbr, selector=selector_fct, rdm_selection=rdm_slct)
             _, deg_fk_tuples = rel_inst.degenerate_and_feed_tuples_at_inds(tuples_indexes, fixed_attrs=fixed_attrs,
-                                                                           respect_fk_constraints=respect_fk_constraints)
+                                                                           respect_fk_constraints=self.respect_fk)
             self.fill_fk_tuples_per_rel(fk_tuples, deg_fk_tuples)
         self.generate_tuples_from_fks(fk_tuples)
 
@@ -99,7 +99,7 @@ class DBInstance:
             param = degeneration_params
             if isinstance(param, int):
                 param = (param,)
-            param = fill_tuple_dflt_vals(param, (0, None, None, False))
+            param = fill_tuple_dflt_vals(param, (0, False, None, None))
             # param is now as (nbr_to_deg, fixed_attrs, selector_fct, rdm_select)
             treated_params[rel_inst] = param
         return treated_params
