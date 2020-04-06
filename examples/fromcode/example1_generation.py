@@ -54,7 +54,7 @@ if __name__ == "__main__":
     def get_label(given_others_attr_values):
         # Label is formed from the couple faculty + city that is the faculty site
         return given_others_attr_values["city"] + '-' + given_others_attr_values["faculty"]
-    label = AttributeInfo("sitelabel", attr_type='str', get_generator_fun=lambda _: get_label,
+    label = AttributeInfo("sitelabel", attr_type='str', get_generator_fun=lambda _: get_label, gen_order=2,
                           desc="Label used as a shortcut designing the site of a faculty")
     faculties = Relation("Faculties", attributes=[fac_in_pk, city, label], pk=[fac_in_pk, city])
 
@@ -85,14 +85,14 @@ if __name__ == "__main__":
     # Adding a site for sciences faculty in Charleroi that will generate a new label
     # The parametrisation of relations instantiations is very flexible
     rel_inst_params2 = {univ: [10,
-                               (1, {"matricule": 10, "persid": "remdec", "faculty": "sciences", "role": "student"}),
+                               (1, {"matricule": 160366, "persid": "remdec", "faculty": "sciences", "role": "student"}),
                                {"persid": "myprof", "faculty": "sciences", "role": "professor"}
                                ],
                         faculties: {"faculty": "sciences", "city": "Charleroi"},
                         usedsites: 0
                         }
 
-    rel_inst_params = rel_inst_params2
+    rel_inst_params = rel_inst_params1
     db = DBInstance(rel_inst_params)
     print(db)
 
