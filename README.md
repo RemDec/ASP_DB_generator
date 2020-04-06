@@ -65,12 +65,12 @@ It refers to the fact we define the database schema ourselves, programmaticaly o
 Here is an example how to do it writing only Python code, from the file [example1](examples/fromcode/example1_generation.py) :
 * Let's define an Attribute that will be the PK of our first Relation (the value generating function is let to default, here an
 incrementer (+1) since Attribute's type is *incr_int*)
-```
+```python
 matricule = AttributeInfo("matricule", attr_type=AttributeTypes.incr_int,
                           desc="Registration number in university system")
 ```
 * Here is another attribute whose generation function is given explicitly 
-```
+```python
 EXISTING_FACS = ["sciences", "EII", "SHS", "FPSE", "FMM"]
 def get_rdm_fac(_):
     return EXISTING_FACS[randint(0, len(EXISTING_FACS)-1)]
@@ -78,23 +78,23 @@ fac = AttributeInfo("faculty", attr_type=AttributeTypes.str, get_generator_fun=l
                     desc="Faculty a univ member is associated with among existing ones (not regarding uni site)")
 ```
 * After defining comprising Attributes, we instantiate the Relation precising its PK
-```
+```python
 univ = Relation("UnivMembers", attributes=[matricule, persID, fac, role], pk=matricule)
 ```
 * Here is an example of an attribute whose generating process depends on other attributes values (and so has a generation order > 1 that is the implicit value)
-```
+```python
 def get_label(given_others_attr_values):
     return given_others_attr_values["city"] + '-' + given_others_attr_values["faculty"]
 label = AttributeInfo("sitelabel", attr_type='str', get_generator_fun=lambda _: get_label, gen_order=2,
                       desc="Label used as a shortcut designing the site of a faculty")
 ```
 * A second Relation 
-```
+```python
 faculties = Relation("Faculties", attributes=[fac_in_pk, city, label], pk=[fac_in_pk, city])
 ```
 * Once Relations are instantiated we can impose FKs constraints between them (here *faculty* Attribute from 
 UnivMembers Relation references Faculties (one attribute in its composed PK that is *fac_in_pk*))
-```
+```python
 univ.add_fk_constraint({"faculty": faculties})
 ```
 * Once all defined, we can print the relational schemas of Relations that will compose our database
@@ -121,7 +121,7 @@ Relation UsedSites| vvv PK vvv
 Here it's in the simplest form, just the number of tuples to generate in. This example illustrates the iterative
 process to respect FKs, as we have a chain of FKs *UnivMembers* → *Faculties* → *UsedSited*.
 
-```
+```python
 rel_inst_params = {univ: 5, faculties: 0, usedsites: 0}
 db = DBInstance(rel_inst_params)
 print(db)
@@ -164,7 +164,7 @@ Detailed in [example2](examples/fromcode/example2_degeneration.py).
 Once we have an instantiated database, we can degenerate it based on some parameters. Reusing db defined
 previously excepted we fixed *faculty* values for generation to illustrate degeneration takes account of FKs constraints,
  we degenerate 5 tuples in *UnivMembers*
-```
+```python
 db = DBInstance(rel_inst_params)
 degeneration_params = {univ: 5}
 db.degenerate_insts(degeneration_params)
@@ -207,7 +207,7 @@ UsedSites | C D  [sitelabel]
 The degeneration can be more parametrized, here for 5 random tuples of *UnivMembers* (max) respecting selector
 condition (ie value for *role* is the constant "professor"), we degenerate keeping fixed values for attributes
 *matricule* and *persid*. 
-```
+```python
 degeneration_params = {univ: (5, True, lambda t: t[0][3] == "professor", ["matricule", "persid"])}
 ```
 ## Wrap (de)generation in a more convenient process 
@@ -218,7 +218,7 @@ This is illustrated in [example3](examples/fromcode/example3_process.py). The pa
 remains unchanged, here we have to Relations (titlebasic, namebasics) from which we instantiate the database.
 The GlobalParameter indicates that in whole database, we want 10 tuples and 200% of inconsistency,
 equally distributed between the tables (so here /2 the global values : 5 tuples/table and 100% inconsistency/table).
-```
+```python
 globparams = GlobalParameters(10, part_deg=200)
 instprocess = InstantiationProcess([titlebasic, namebasics], globparams)
 instprocess.instantiate_db()
@@ -226,12 +226,12 @@ instprocess.denegerate_db()
 ```  
 This is also possible to precise parameters for each relation instantiation individually, and to use an hybrid of both :
 GlobalParameter will apply on relations for which specific parameters are not provided. 
-```
+```python
 titleparams = TableParameters(10, part_deg=100)
 nameparams = TableParameters(10, part_deg=100)
 instprocess = InstantiationProcess([(titlebasic, titleparams), (namebasics, nameparams)])
 ```
-```
+```python
 titleparams = TableParameters(10, part_deg=100)
 globparams = GlobalParameters(20, part_deg=200)
 instprocess = InstantiationProcess([(titlebasic, titleparams), namebasics], globparams)
@@ -242,7 +242,7 @@ we have to translate it in an ASP compliant format and write it in a file. Be ca
 will be transformed to respect ASP clingo syntax, for example constants cannot start with a capital
 because it is interpreted as a variable to ground.  
 This is done using 
-```
+```python
 write_db_inst(DBInstance(rel_big_inst_params), asp=True, printed=False, target_dir="../../outputs")
 ``` 
 A sample of the produced ASP database :
