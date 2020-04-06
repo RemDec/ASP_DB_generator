@@ -160,7 +160,82 @@ UsedSites | C D  [sitelabel]
 This is currently not implemented, but only requires an adapted parser.
 For example, treating the output of ```mysqldump --xml ...``` (see [here](https://www.eversql.com/exporting-mysql-schema-structure-to-xml-using-mysql-clients/#mysqldump)).
 ## Degenerate a generated database
+Detailed in [example2](examples/fromcode/example2_degeneration.py).
+Once we have an instantiated database, we can degenerate it based on some parameters. Reusing db defined
+previously excepted we fixed *faculty* values for generation to illustrate degeneration takes account of FKs constraints,
+ we degenerate 5 tuples in *UnivMembers*
+```
+db = DBInstance(rel_inst_params)
+degeneration_params = {univ: 5}
+db.degenerate_insts(degeneration_params)
+print(db)
+```
+```
+DBInstance with 3 relation instances, generated from parameters :
+>Relation UnivMembers : kept attributes=ALL | respect FK=True | params for generation=[(5, {'faculty': 'sciences'})]
+>Relation Faculties : kept attributes=ALL | respect FK=True | params for generation=0
+>Relation UsedSites : kept attributes=ALL | respect FK=True | params for generation=0
 
+Instance of UnivMembers, 10 tuples : 5 (regular) 0 (from constraints) 5 (degenerated)
+UnivMembers | C D  [matricule] persid   <faculty> role   
+            +--------------------------------------------
+            |      1           UN1LYD8L sciences  student
+            |      2           MULBWY68 sciences  student
+            |      3           FEFKOPOY sciences  student
+            |      4           190VCO24 sciences  student
+            |      5           19F5H0ZN sciences  student
+            |   *  1           71SL4MXW sciences  student
+            |   *  2           AIK45LN7 sciences  student
+            |   *  3           OO7609ZY sciences  student
+            |   *  4           1RK71FD4 EII       student
+            |   *  5           BTHXTPQJ SHS       student
+
+Instance of Faculties, 3 tuples : 0 (regular) 3 (from constraints) 0 (degenerated)
+Faculties | C D  [faculty] [city] <sitelabel>  
+          +------------------------------------
+          | *    sciences  Mons   Mons-sciences
+          | *    EII       Mons   Mons-EII     
+          | *    SHS       Mons   Mons-SHS     
+
+Instance of UsedSites, 3 tuples : 0 (regular) 3 (from constraints) 0 (degenerated)
+UsedSites | C D  [sitelabel]  
+          +-------------------
+          | *    Mons-sciences
+          | *    Mons-EII     
+          | *    Mons-SHS
+```
+The degeneration can be more parametrized, here for 5 random tuples of *UnivMembers* (max) respecting selector
+condition (ie value for *role* is the constant "professor"), we degenerate keeping fixed values for attributes
+*matricule* and *persid*. 
+```
+degeneration_params = {univ: (5, True, lambda t: t[0][3] == "professor", ["matricule", "persid"])}
+```
+## Wrap (de)generation in a more convenient process 
+The (de)generation process is highly parametrizable, but the format of parameters the primitives take is quite raw.
+We would like to tell the application "I want n tuples in my db, and x% of degeneration". This is done
+using some "wrapper" that will do the translation to raw parameters seamlessly. 
+This is illustrated in [example3](examples/fromcode/example3_process.py). The part for relational model creation
+remains unchanged, here we have to Relations (titlebasic, namebasics) from which we instantiate the database.
+The GlobalParameter indicates that in whole database, we want 10 tuples and 200% of inconsistency,
+equally distributed between the tables (so here /2 the global values : 5 tuples/table and 100% inconsistency/table).
+```
+globparams = GlobalParameters(10, part_deg=200)
+instprocess = InstantiationProcess([titlebasic, namebasics], globparams)
+instprocess.instantiate_db()
+instprocess.denegerate_db()
+```  
+This is also possible to precise parameters for each relation instantiation individually, and to use an hybrid of both :
+GlobalParameter will apply on relations for which specific parameters are not provided. 
+```
+titleparams = TableParameters(10, part_deg=100)
+nameparams = TableParameters(10, part_deg=100)
+instprocess = InstantiationProcess([(titlebasic, titleparams), (namebasics, nameparams)])
+```
+```
+titleparams = TableParameters(10, part_deg=100)
+globparams = GlobalParameters(20, part_deg=200)
+instprocess = InstantiationProcess([(titlebasic, titleparams), namebasics], globparams)
+```
 ## Write down a relational database in ASP program
 Once the content of the relational database is fixed and we would like to apply ASP queries on it, 
 we have to translate it in an ASP compliant format and write it in a file. Be careful that some data
@@ -170,3 +245,11 @@ This is done using
 ```
 write_db_inst(DBInstance(rel_big_inst_params), asp=True, printed=False, target_dir="../../outputs")
 ``` 
+A sample of the produced ASP database :
+```
+univmembers(19,j7plz515,fpse,student).
+:
+faculties(fpse,mons,mons-fpse).
+:
+usedsites(mons-fpse).
+```

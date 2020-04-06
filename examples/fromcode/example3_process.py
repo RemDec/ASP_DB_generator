@@ -81,7 +81,7 @@ if __name__ == "__main__":
     # In this case (10 tuples and 200% of degeneration), both relations will be instantiated with 5 tuples
     # and 100% of the tuples will be degenerated, ending up in tables with 5+5 tuples.
     #
-    globparams = GlobalParameters(1000, part_deg=200)
+    globparams = GlobalParameters(10, part_deg=200)
     instprocess = InstantiationProcess([titlebasic, namebasics], globparams)
 
     # This configuration with individual TableParameters for each relation will be equivalent to the

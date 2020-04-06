@@ -60,7 +60,7 @@ if __name__ == "__main__":
     # tuples should have different values for 'faculty' than the one fixed, and as it's a FK referencing Faculties
     # table, new tuples should also be generated from. The process works in the same iterative way than example1, so
     # UsedSites will also be fill to respect FK constraint on Faculties.
-    rel_inst_params = {univ: [(10, {"faculty": "sciences"})],
+    rel_inst_params = {univ: [(5, {"faculty": "sciences"})],
                        faculties: 0,
                        usedsites: 0
                        }
