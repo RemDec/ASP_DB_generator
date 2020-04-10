@@ -70,7 +70,9 @@ if __name__ == "__main__":
                                                     primaryProfession, knownForTitles], pk=nconst)
 
     # ---- FK CONSTRAINTS ----
-    # namebasics.add_fk_constraint({"knownForTitles": titlebasic})
+    # Here the attribute in FK references an attribute in the other table whose name is different in,
+    # need to specify the mapping in FK declaration (knownForTitles [table namebasics] -> tconst [table titlebasic])
+    namebasics.add_fk_constraint({"knownForTitles": (titlebasic, {"knownForTitles": "tconst"})})
 
     # print("Relational model :\n", titlebasic, namebasics, sep='\n')
 
@@ -82,7 +84,7 @@ if __name__ == "__main__":
     # and 100% of the tuples will be degenerated, ending up in tables with 5+5 tuples.
     #
     globparams = GlobalParameters(10, part_deg=200)
-    instprocess = InstantiationProcess([titlebasic, namebasics], globparams)
+    instprocess = InstantiationProcess([namebasics, titlebasic], globparams)
 
     # This configuration with individual TableParameters for each relation will be equivalent to the
     # previous one providing only a GlobalParameters(10, part_deg=200)

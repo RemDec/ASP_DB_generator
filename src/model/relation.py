@@ -1,7 +1,7 @@
 from operator import itemgetter
 from src.model.attribute import AttributeInfo
 from src.instantiation.relinstance import RelationInstance
-from src.utils.utilfunctions import single_to_tuple, get_indexes, normalize_gen_param
+from src.utils.utilfunctions import single_to_tuple, get_indexes, normalize_gen_param, fill_tuple_dflt_vals
 
 
 class KeyMaterialError(ValueError):
@@ -41,12 +41,26 @@ class Relation:
             self.add_attribute(attributes)
 
     def add_fk_constraint(self, map_to_others_rel):
-        for attr_names, foreign_rel in map_to_others_rel.items():
+        for attr_names, foreign_rel_mapping in map_to_others_rel.items():
             attr_names = single_to_tuple(attr_names)
-            if not foreign_rel.pk_contains(attr_names):
+            name_mapping = {}
+            foreign_rel = foreign_rel_mapping
+            if isinstance(foreign_rel_mapping, Relation):
+                for attr in attr_names:
+                    name_mapping[attr] = attr
+            elif len(foreign_rel_mapping) == 2:
+                foreign_rel = foreign_rel_mapping[0]
+                renamed_attrs = foreign_rel_mapping[1]
+                for attr in attr_names:
+                    if attr in renamed_attrs:
+                        name_mapping[attr] = renamed_attrs[attr]
+                    else:
+                        name_mapping[attr] = attr
+            foreign_rel_mapping = (foreign_rel, name_mapping)
+            if not foreign_rel.pk_contains(name_mapping.values()):
                 err = f"Given FK for {self.name} wrongly references PK in relation {foreign_rel.name}"
                 raise KeyMaterialError(err, foreign_rel)
-            self.fks[attr_names] = foreign_rel
+            self.fks[attr_names] = foreign_rel_mapping
 
     def define_pk(self, pk):
         if isinstance(pk, str):
@@ -196,7 +210,10 @@ class Relation:
         return sorted(info) if sort_them else info
 
     def __copy__(self):
-        copy_rel = Relation(self.name, attributes=self.attributes.copy(), pk=self.pk.copy())
+        reset_attrs = {}
+        for attr_name, attr in self.attributes.items():
+            reset_attrs[attr_name] = attr.__copy__()
+        copy_rel = Relation(self.name, attributes=reset_attrs, pk=self.pk.copy())
         copy_rel.add_fk_constraint(self.fks.copy())  # CARE NO DEEP COPY OF RELATIONS REFERENCED BY FKs !!!
         return copy_rel
 
@@ -214,7 +231,13 @@ class Relation:
                 in_fk = self.get_belongs_fk(attr)
                 if in_fk:
                     s = s[:-1]
-                    s += f" - FK for {','.join([self.fks[fk].name for fk in in_fk])}\n"
+                    for fk_key in in_fk:
+                        o_rel, mapping_names = self.fks.get(fk_key)
+                        map_name = ""
+                        if mapping_names[attr] != attr:
+                            map_name = f"({attr}->{mapping_names[attr]})"
+                        s += f" - FK referencing {o_rel.name} {map_name}"
+                    s += "\n"
             return s
         s += disp_attributes_info(pk_attr)
         s += ' '*shifting + "| vvv OTHERS vvv\n"
@@ -242,7 +265,7 @@ if __name__ == "__main__":
                                 "attr3": fk_str})
 
     RRel = Relation("RRel", pk="attr3", attributes={"attr3": AttributeInfo("attr3", attr_type=AttributeTypes.str)})
-    SRel.add_fk_constraint({"attr3": RRel})
+    SRel.add_fk_constraint({"attr3": (RRel, {"attr3": "pk_in_o_rel"})})
 
     print(SRel, RRel, sep='\n')
     print("generating tuples from SRel ...")

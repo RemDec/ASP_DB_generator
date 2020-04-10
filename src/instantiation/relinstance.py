@@ -111,7 +111,8 @@ class RelationInstance:
 
     def generate_fk_attr_vals(self, fed_tuples):
         o_rel_tuples_fk = {}  # to feed as {Relation: [{attr1: val1,..}, {attr1: val1,..}], Relation2: [FK attr vals], }
-        for ind_attr_fk, rel in self.get_ind_fixed_attr_in_fk().items():
+        for ind_attr_fk, rel_mapping in self.get_ind_fixed_attr_in_fk().items():
+            rel, attr_names_mapping = rel_mapping
             for tup in fed_tuples:
                 # keep subset of generated tuple values considering only attributes in FK referencing rel
                 tup_fk_val = itemgetter(*ind_attr_fk)(tup)
@@ -123,7 +124,8 @@ class RelationInstance:
                 dict_attr_val = {}
                 for ind in range(len(ind_attr_fk)):
                     # rebuilding unordered dict {attr1: val1, attr2: val2, ..} where attrN belongs to FK to rel
-                    attr, val = tup_fk_attr[ind], tup_fk_val[ind]
+                    name_attr_in_o_rel = attr_names_mapping[tup_fk_attr[ind]]
+                    attr, val = name_attr_in_o_rel, tup_fk_val[ind]
                     dict_attr_val[attr] = val
                 if o_rel_tuples_fk.get(rel) is None:
                     o_rel_tuples_fk[rel] = [dict_attr_val]
